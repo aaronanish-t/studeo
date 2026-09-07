@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 import type { DashboardData } from "@/lib/dashboard";
 import { cn, formatClock, formatLongDate, relativeTo, STATUS_STYLES } from "@/lib/ui";
 
@@ -36,7 +38,10 @@ export function DashboardView({
         <Link href="/" className="text-lg font-semibold tracking-tight">
           Studeo
         </Link>
-        {badge}
+        <div className="flex items-center gap-2">
+          {badge}
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* ---- the one number ------------------------------------------- */}
@@ -167,6 +172,11 @@ export function DashboardView({
             href: `${basePath}/free?day=${dayOrder}`,
             title: "When is everyone free?",
             detail: "Your day against your friends’",
+          },
+          {
+            href: `${basePath}/marks`,
+            title: "Internal marks",
+            detail: "Every component, as it lands",
           },
         ].map((item) => (
           <Link

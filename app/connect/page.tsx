@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 export const metadata = { title: "Connect" };
 
 const STEPS = [
@@ -28,10 +30,11 @@ const STEPS = [
 export default function ConnectPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-6 pb-24">
-      <header className="py-8">
+      <header className="flex items-center justify-between py-8">
         <Link href="/" className="text-lg font-semibold tracking-tight">
           Studeo
         </Link>
+        <ThemeToggle />
       </header>
 
       <h1 className="pt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">

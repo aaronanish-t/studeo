@@ -1,10 +1,13 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 export default function Home() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6">
-      <header className="py-8">
+      <header className="flex items-center justify-between py-8">
         <span className="text-lg font-semibold tracking-tight">Studeo</span>
+        <ThemeToggle />
       </header>
 
       <main className="flex flex-1 flex-col justify-center py-16">
