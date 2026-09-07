@@ -27,7 +27,7 @@ export default async function FreeHoursPage({
       group={group}
       dayOrder={dayOrder}
       basePath=""
-      badge={<span className="text-xs text-text-muted">{session.netId}</span>}
+      badge={<span className="hidden text-xs text-text-muted sm:inline">{session.netId}</span>}
     />
   );
 }

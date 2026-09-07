@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { NavMenu } from "@/components/nav-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 import { formatDuration } from "@/lib/freehour";
@@ -34,12 +35,13 @@ export function TimetableView({
   return (
 
     <div className="mx-auto w-full max-w-2xl px-6 pb-24">
-      <header className="flex items-center justify-between py-8">
+      <header className="flex items-center justify-between gap-3 py-8">
         <Link href={basePath || "/"} className="text-lg font-semibold tracking-tight">
           Studeo
         </Link>
         <div className="flex items-center gap-2">
           {badge}
+          <NavMenu basePath={basePath} />
           <ThemeToggle />
         </div>
       </header>
