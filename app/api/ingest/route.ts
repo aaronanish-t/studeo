@@ -34,6 +34,11 @@ const PayloadSchema = z.object({
   profileHtml: htmlField,
   attendanceHtml: htmlField.optional(),
   marksHtml: htmlField.optional(),
+  marksDetail: z
+    .array(z.object({ courseCode: z.string().max(32), html: htmlField }))
+    // One entry per graded course. A semester has well under this many.
+    .max(40)
+    .optional(),
   calendarHtml: htmlField.optional(),
   coursesHtml: htmlField.optional(),
 });
