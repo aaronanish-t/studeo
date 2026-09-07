@@ -68,8 +68,17 @@ export async function POST(request: Request) {
 
   const parsed = PayloadSchema.safeParse(body);
   if (!parsed.success) {
+    // Name the field. Zod's default ("expected string, received undefined")
+    // is true and useless when four of the five fields are optional.
+    const issue = parsed.error.issues[0];
+    const field = issue?.path.join(".");
+
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "That payload didn't look right." },
+      {
+        error: field
+          ? `${field}: ${issue.message}`
+          : (issue?.message ?? "That payload didn't look right."),
+      },
       { status: 400, headers: CORS_HEADERS }
     );
   }
