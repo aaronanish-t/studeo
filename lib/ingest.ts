@@ -4,6 +4,7 @@ import { buildTimetable } from "./sources/slot-grid";
 import {
   parseAttendance,
   parseCalendar,
+  parseMarksDetail,
   parseMarksSummary,
   parseProfile,
 } from "./sources/student-portal";
@@ -28,8 +29,17 @@ export interface IngestPayload {
   profileHtml: string;
   /** Student Portal form 9. */
   attendanceHtml?: string;
-  /** Student Portal form 13. */
+  /** Student Portal form 13 — the summary list. */
   marksHtml?: string;
+  /**
+   * The per-course component breakdowns, one entry per graded course.
+   *
+   * Separate from marksHtml because the portal hides components behind a second
+   * request per course, keyed on an internal id that appears only in the
+   * summary's onclick handler. The extension makes those requests and sends the
+   * results here alongside the summary.
+   */
+  marksDetail?: Array<{ courseCode: string; html: string }>;
   /** Student Portal form 129 — campus-wide, shared by everyone. */
   calendarHtml?: string;
   /** Academia's course table — the only source of slots. */
@@ -111,7 +121,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
     }
 
     if (payload.marksHtml) {
-      wrote.marks = await ingestMarks(user.id, payload.marksHtml);
+      wrote.marks = await ingestMarks(user.id, payload.marksHtml, payload.marksDetail);
     }
 
     if (payload.calendarHtml) {
@@ -282,8 +292,13 @@ async function ingestAttendance(userId: string, html: string): Promise<number> {
   return written;
 }
 
-async function ingestMarks(userId: string, html: string): Promise<number> {
+async function ingestMarks(
+  userId: string,
+  html: string,
+  details: IngestPayload["marksDetail"]
+): Promise<number> {
   const summaries = parseMarksSummary(html);
+  const detailByCode = new Map((details ?? []).map((d) => [d.courseCode, d.html]));
   let written = 0;
 
   for (const summary of summaries) {
@@ -293,9 +308,55 @@ async function ingestMarks(userId: string, html: string): Promise<number> {
     });
     if (!course) continue;
 
-    // The summary row carries a total, not components. The per-component
-    // breakdown needs a second request per course, which the extension makes
-    // separately; until then, record the total under a reserved code.
+    const detailHtml = detailByCode.get(summary.courseCode);
+    let components: ReturnType<typeof parseMarksDetail> = [];
+
+    if (detailHtml) {
+      try {
+        components = parseMarksDetail(detailHtml);
+      } catch {
+        // A breakdown that won't parse shouldn't cost us the total we already
+        // have. Fall through and store the summary instead.
+        components = [];
+      }
+    }
+
+    if (components.length > 0) {
+      for (const component of components) {
+        await prisma.markRecord.upsert({
+          where: {
+            courseId_testCode: { courseId: course.id, testCode: component.component },
+          },
+          create: {
+            courseId: course.id,
+            testCode: component.component,
+            maxMarks: component.maxMark ?? 0,
+            obtained: component.obtained,
+          },
+          update: {
+            maxMarks: component.maxMark ?? 0,
+            obtained: component.obtained,
+            capturedAt: new Date(),
+          },
+        });
+      }
+
+      // Drop the placeholder total now that the real components are here.
+      // Keeping both would leave the course ambiguous: is TOTAL a component or
+      // a rollup? getMarks would have to guess, and one day guess wrong.
+      await prisma.markRecord
+        .delete({
+          where: { courseId_testCode: { courseId: course.id, testCode: "TOTAL" } },
+        })
+        .catch(() => {
+          // Nothing to remove — this course never had a placeholder.
+        });
+
+      written += components.length;
+      continue;
+    }
+
+    // No breakdown available: record the summary total under a reserved code.
     await prisma.markRecord.upsert({
       where: { courseId_testCode: { courseId: course.id, testCode: "TOTAL" } },
       create: {

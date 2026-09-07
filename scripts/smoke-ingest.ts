@@ -25,6 +25,7 @@ import { COURSE_TABLE_HTML, STUDENT_PROFILE_HTML } from "../lib/sources/fixtures
 import {
   ATTENDANCE_PAGE_HTML,
   CALENDAR_HTML,
+  MARKS_DETAIL_HTML,
   MARKS_SUMMARY_HTML,
 } from "../lib/sources/fixtures/student-portal";
 
@@ -44,6 +45,9 @@ async function main() {
       profileHtml: STUDENT_PROFILE_HTML,
       attendanceHtml: ATTENDANCE_PAGE_HTML,
       marksHtml: MARKS_SUMMARY_HTML,
+      // One course with its component breakdown, one without — so the run
+      // exercises both branches: real components, and the placeholder total.
+      marksDetail: [{ courseCode: "21CSS201T", html: MARKS_DETAIL_HTML }],
       calendarHtml: CALENDAR_HTML,
       coursesHtml: COURSE_TABLE_HTML,
     }),
@@ -87,6 +91,23 @@ async function main() {
 
   const withMarks = user.courses.filter((c) => c.marks.length > 0);
   ok("courses with marks", withMarks.length);
+
+  // The course we sent a breakdown for must hold the real component, and must
+  // NOT still hold the placeholder total alongside it.
+  const detailed = withMarks.find((c) => c.code === "21CSS201T");
+  const codes = detailed?.marks.map((m) => m.testCode) ?? [];
+  (codes.includes("FT-I") && !codes.includes("TOTAL") ? ok : bad)(
+    "21CSS201T stores components, not the placeholder",
+    codes.join(", ")
+  );
+
+  // The course we sent no breakdown for keeps its total.
+  const summaryOnly = withMarks.find((c) => c.code === "21MAB201T");
+  const summaryCodes = summaryOnly?.marks.map((m) => m.testCode) ?? [];
+  (summaryCodes.includes("TOTAL") ? ok : bad)(
+    "21MAB201T falls back to the summary total",
+    summaryCodes.join(", ")
+  );
 
   // The whole reason Academia is in the payload: slots become a real week.
   ok("timetable slots", user.timetable.length);
