@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Studeo design tokens — paper-light by default.
+   ---------------------------------------------------------------------------
+   Every other SRM portal is dark. Being the bright one is the cheapest way to
+   look different in a row of screenshots, and a calm layout reads better on
+   paper-white than on black anyway.
+
+   Dark is a real mode, not an inversion: it's what you want at 1am the night
+   before an exam. It follows the OS unless the user overrides it, and the
+   override wins in both directions.
+
+   Colours are referenced through semantic tokens, so components never carry a
+   `dark:` variant. One place to change, no drift between the two themes.
+
+   ---------------------------------------------------------------------------
+   The scheme is MONOCHROME, and that is a decision rather than a shortage of
+   ideas: the interface has no accent hue at all. Buttons and links are ink.
+
+   The consequence is the point — the only colour anywhere on screen is
+   attendance status. Green, amber and red mean comfortable, on the line, and
+   below 75%, and they mean nothing else, ever. A student glancing at the page
+   doesn't have to work out whether a red thing is a warning or a button,
+   because there is no other red thing.
+
+   Spending the accent on a hue would buy decoration and cost that clarity.
+   Swapping scheme later is one block of variables (see /palettes for live
+   alternatives) — nothing outside this file contains a colour.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* Warm paper, near-black ink. The neutrals carry a slight warm bias rather
+     than being pure grey — a true #F5F5F5 reads as unconsidered. */
+  --ground: #f7f6f3;
+  --surface: #ffffff;
+  --surface-sunk: #efece7;
+  --border: #e4e2dc;
+  --border-strong: #c8c5bd;
+
+  --text: #141414;
+  --text-muted: #5a5a58;
+  --text-faint: #8d8b86;
+
+  /* The accent is ink, not a hue. See the note above the status colours. */
+  --accent: #1a1a1a;
+  --accent-hover: #000000;
+  --accent-fg: #ffffff;
+  --accent-soft: #eeece7;
+
+  --safe: #147a4f;
+  --safe-soft: #e6f4ec;
+  --edge: #8a5a00;
+  --edge-soft: #fbf0dc;
+  --under: #b3261e;
+  --under-soft: #fceae8;
+
+  color-scheme: light;
+}
+
+/* Deliberately NOT following prefers-color-scheme.
+ *
+ * Light is the identity here, not a fallback. Every other SRM portal is dark,
+ * most developers and a good share of students run their OS dark, and honouring
+ * the system preference would mean almost nobody ever sees the design we chose.
+ * Dark is available and properly built — it just has to be asked for.
+ *
+ * The toggle writes data-theme, so this block is what it turns on. */
+:root[data-theme="dark"] {
+  --ground: #101010;
+  --surface: #191918;
+  --surface-sunk: #212120;
+  --border: #2b2b29;
+  --border-strong: #3c3b38;
+
+  --text: #f0efec;
+  --text-muted: #a3a19c;
+  --text-faint: #6f6d68;
+
+  /* Inverted ink: in dark mode the accent becomes light rather than becoming a
+     colour. The rule holds in both themes — hue always means status. */
+  --accent: #f0efec;
+  --accent-hover: #ffffff;
+  --accent-fg: #101010;
+  --accent-soft: #242422;
+
+  --safe: #4ec98d;
+  --safe-soft: #12271d;
+  --edge: #e2b04a;
+  --edge-soft: #2a2213;
+  --under: #f0736f;
+  --under-soft: #2d1719;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-safe: var(--safe);
+  --color-safe-soft: var(--safe-soft);
+  --color-edge: var(--edge);
+  --color-edge-soft: var(--edge-soft);
+  --color-under: var(--under);
+  --color-under-soft: var(--under-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* Percentages, hours and times sit in columns all over this app. Without
+   tabular figures they jitter every time a number changes. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
