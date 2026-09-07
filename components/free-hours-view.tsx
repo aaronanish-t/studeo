@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 import { formatDuration } from "@/lib/freehour";
 import type { GroupDay } from "@/lib/group";
 import { HOUR_TIMES } from "@/lib/sources/slot-grid";
@@ -83,7 +85,10 @@ export function FreeHoursView({
         <Link href={basePath || "/"} className="text-lg font-semibold tracking-tight">
           Studeo
         </Link>
-        {badge}
+        <div className="flex items-center gap-2">
+          {badge}
+          <ThemeToggle />
+        </div>
       </header>
 
       <h1 className="pt-4 text-sm font-medium tracking-[0.16em] text-text-faint uppercase">

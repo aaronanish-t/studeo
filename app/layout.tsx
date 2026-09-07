@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import { THEME_INIT_SCRIPT } from "@/components/theme-toggle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,7 +53,16 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // The pre-paint script below stamps data-theme before React runs, which
+      // is by definition a difference between server and client markup.
+      suppressHydrationWarning
     >
+      <head>
+        {/* Must run before first paint, and before anything renders — a viewer
+            who chose dark would otherwise get a white flash until hydration.
+            See components/theme-toggle.tsx. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
