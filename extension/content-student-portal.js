@@ -67,6 +67,65 @@ async function fetchForm(formId, salt) {
   return html;
 }
 
+/**
+ * Fetch one course's component breakdown.
+ *
+ * Captured from the portal's own handler:
+ *
+ *   funViewComponentWiseMarks(id, code, title, status) {
+ *     $.post("../../students/report/studentInternalMarkDetailsInner.jsp",
+ *            [ {iden:1}, {hdnSubjectId:id}, {status:status} ])
+ *   }
+ *
+ * Note it takes NO csrfPreventionSalt, unlike the HRDSystem form posts. That's
+ * the portal's choice, not ours; we send exactly what it asks for.
+ */
+const MARK_DETAIL_URL = `${CONTEXT}/students/report/studentInternalMarkDetailsInner.jsp`;
+
+async function fetchMarkDetail(subjectId, status) {
+  const response = await fetch(MARK_DETAIL_URL, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      iden: "1",
+      hdnSubjectId: String(subjectId),
+      status: String(status ?? 2),
+    }),
+  });
+
+  if (!response.ok) throw new Error(`DETAIL_HTTP_${response.status}`);
+  return response.text();
+}
+
+/**
+ * Pull the (courseCode, subjectId, status) triples out of the summary page.
+ *
+ * Done here rather than server-side because the extension needs them to make
+ * the follow-up requests, and re-parsing the same page in two places would be
+ * two things to keep in step. The server parses the summary again for its own
+ * purposes — that duplication is deliberate and cheap.
+ */
+function markTargets(summaryHtml) {
+  const doc = new DOMParser().parseFromString(summaryHtml, "text/html");
+  const targets = [];
+
+  for (const row of doc.querySelectorAll("tbody tr")) {
+    const code = row.querySelector("td")?.textContent?.trim();
+    const onclick = row.querySelector("[onclick]")?.getAttribute("onclick") ?? "";
+
+    const call = onclick.match(
+      /funViewComponentWiseMarks\(\s*'([^']*)'\s*,\s*'[^']*'\s*,\s*'[^']*'\s*,\s*(\d+)\s*\)/
+    );
+
+    if (code && call) {
+      targets.push({ courseCode: code, subjectId: call[1], status: Number(call[2]) });
+    }
+  }
+
+  return targets;
+}
+
 async function collect() {
   const salt = await csrfSalt();
 
@@ -90,7 +149,31 @@ async function collect() {
     }
   }
 
-  return { profileHtml, ...optional };
+  // One extra request per graded course, for the component breakdown the
+  // summary page only links to. Sequential and bounded: a semester is under a
+  // dozen courses, and firing them in parallel at a college server to save half
+  // a second is not a trade worth making.
+  const marksDetail = [];
+  if (optional.marksHtml) {
+    for (const target of markTargets(optional.marksHtml)) {
+      try {
+        marksDetail.push({
+          courseCode: target.courseCode,
+          html: await fetchMarkDetail(target.subjectId, target.status),
+        });
+      } catch (error) {
+        // One course's breakdown failing shouldn't lose the others, nor the
+        // summary totals we already have.
+        console.warn(`[Studeo] skipped marks detail for ${target.courseCode}:`, error.message);
+      }
+    }
+  }
+
+  return {
+    profileHtml,
+    ...optional,
+    ...(marksDetail.length > 0 ? { marksDetail } : {}),
+  };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

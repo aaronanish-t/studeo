@@ -45,11 +45,17 @@ export const MARKS_SUMMARY_HTML = `
 </tbody></table>
 `.trim();
 
-/** The per-course modal opened by funViewComponentWiseMarks(). */
+/**
+ * The per-course breakdown, captured verbatim from a live POST to
+ *   /srmiststudentportal/students/report/studentInternalMarkDetailsInner.jsp
+ *   iden=1 & hdnSubjectId=39137 & status=2
+ *
+ * Note the response is a bare fragment wrapped in a div, not a document, and
+ * that this endpoint takes no csrfPreventionSalt — unlike the HRDSystem form
+ * posts everything else on this portal goes through.
+ */
 export const MARKS_DETAIL_HTML = `
-<table class="table mb-0"><thead><tr><th scope="col">Entered on</th><th scope="col">Component</th><th scope="col">Mark / Max. Mark</th></tr></thead><tbody>
-<tr valign="top"><td>31/Aug/2026</td><td>FT-I</td><td>4.20 / 5.00</td></tr>
-</tbody></table>
+<div class="table-responsive table-billing-history "> <table class="table mb-0 "> <thead> <tr> <th scope="col">Entered on</th> <th scope="col">Component</th> <th scope="col">Mark / Max. Mark</th> </tr> </thead> <tbody> <tr valign="top"> <td>31/Aug/2026</td> <td>FT-I</td> <td>4.20 / 5.00</td> </tr> </tbody> </table> </div>
 `.trim();
 
 /**

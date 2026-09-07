@@ -74,8 +74,18 @@ export interface PortalMarkSummary {
   title: string;
   obtained: number | null;
   maxMark: number | null;
-  /** Internal id needed to request the per-component breakdown. */
+  /**
+   * Internal subject id, needed to request the component breakdown. It exists
+   * nowhere in the markup except the expander's onclick handler.
+   */
   internalId: string | null;
+  /**
+   * The `status` argument that same handler passes along. Its meaning isn't
+   * documented anywhere we can see — it has been 2 on every row observed — but
+   * the endpoint expects it, so it's carried through verbatim rather than
+   * assumed.
+   */
+  status: number | null;
 }
 
 export interface PortalMarkComponent {
@@ -223,17 +233,27 @@ export function parseMarksSummary(html: string): PortalMarkSummary[] {
 
       const { obtained, maxMark } = parseMarkPair(cells[2]);
 
-      // The internal id lives only in the expander's onclick handler; without
-      // it we can't request that course's component breakdown.
+      // Both the id and the status live only in the expander's onclick, which
+      // reads:
+      //   funViewComponentWiseMarks('39137', '21CSS201T', 'COMPUTER ORG…', 2)
+      // Capture the first and fourth arguments; the middle two are the code and
+      // title, which we already have from the row's own cells.
       const onclick = $(tr).find("[onclick]").attr("onclick") ?? "";
-      const idMatch = onclick.match(/funViewComponentWiseMarks\(\s*'([^']+)'/);
+      const call = onclick.match(
+        /funViewComponentWiseMarks\(\s*'([^']*)'\s*,\s*'[^']*'\s*,\s*'[^']*'\s*,\s*(\d+)\s*\)/
+      );
+
+      // Fall back to the id alone if the signature ever changes shape — the id
+      // is the part we can't do without.
+      const idOnly = call ? null : onclick.match(/funViewComponentWiseMarks\(\s*'([^']+)'/);
 
       return {
         courseCode: cells[0],
         title: cells[1],
         obtained,
         maxMark,
-        internalId: idMatch ? idMatch[1] : null,
+        internalId: call?.[1] ?? idOnly?.[1] ?? null,
+        status: call ? Number(call[2]) : null,
       };
     })
     .filter((row): row is PortalMarkSummary => row !== null);

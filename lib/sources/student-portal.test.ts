@@ -140,6 +140,23 @@ describe("parseMarksSummary", () => {
     // it appears nowhere else in the markup.
     expect(marks.map((m) => m.internalId)).toEqual(["39137", "39210"]);
   });
+
+  it("extracts the status argument too", () => {
+    // The breakdown endpoint requires it alongside the id. Captured from the
+    // portal's own handler; observed as 2 on every row so far.
+    expect(marks.map((m) => m.status)).toEqual([2, 2]);
+  });
+
+  it("still finds the id if the handler's signature changes shape", () => {
+    const oneArg = MARKS_SUMMARY_HTML.replace(
+      /funViewComponentWiseMarks\([^)]*\)/,
+      "funViewComponentWiseMarks('39137')"
+    );
+
+    const [first] = parseMarksSummary(oneArg);
+    expect(first.internalId).toBe("39137");
+    expect(first.status).toBeNull();
+  });
 });
 
 describe("parseMarksDetail", () => {
