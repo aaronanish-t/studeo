@@ -1,0 +1,295 @@
+// Studeo — data model
+//
+// Two things drive the shape of this schema:
+//
+//  1. SRM Academia runs on DAY ORDERS, not weekdays. A student's timetable is a
+//     map of (dayOrder 1..5 x slot) -> course. A separate campus-wide calendar
+//     maps each calendar DATE -> a day order. Holidays don't blank a day, they
+//     PUSH the day order forward, so "what class do I have Tuesday" is only
+//     answerable by going date -> dayOrder -> timetable. Every feature here
+//     depends on that indirection being modelled honestly.
+//
+//  2. We never store a user's SRM password. We store the Zoho session cookie
+//     they hand us at login, encrypted, with its natural expiry. Background
+//     sync runs while that session is alive; when it dies the user signs in
+//     again. See AcademiaSession and lib/vault.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 removed connection URLs from the schema. Migrations read theirs
+// from prisma.config.ts; the running app supplies a driver adapter in
+// lib/db.ts. See https://pris.ly/d/config-datasource
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+model User {
+  id        String  @id @default(cuid())
+  netId     String  @unique // e.g. at4152 — the part before @srmist.edu.in
+  email     String  @unique
+  name      String
+  regNo     String? // registration number, as printed on the portal
+  department String?
+  program   String? // e.g. B.Tech CSE
+  year      Int?
+  section   String?
+
+  role   Role    @default(STUDENT)
+  isDemo Boolean @default(false) // seeded accounts backing the public demo
+
+  // Denormalised for the dashboard header — recomputed on each sync so the
+  // shell can render before any of the heavier relations are loaded.
+  lastSyncedAt      DateTime?
+  attendanceOverall Float?
+
+  session       AcademiaSession?
+  courses       Course[]
+  timetable     TimetableSlot[]
+  syncRuns      SyncRun[]
+  sentRequests     Friendship[] @relation("requester")
+  receivedRequests Friendship[] @relation("addressee")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isDemo])
+}
+
+// ---------------------------------------------------------------------------
+// Credential vault
+// ---------------------------------------------------------------------------
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+/// The encrypted Zoho session cookie for one user.
+///
+/// Deliberately NOT a password. A leak of this table yields short-lived session
+/// tokens for a student portal, not reusable college logins. Ciphertext is
+/// AES-256-GCM; the key lives only in VAULT_KEY (env) and never in the repo.
+model AcademiaSession {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ciphertext String // base64 — the serialised cookie jar
+  iv         String // base64 — 12-byte GCM nonce, unique per write
+  authTag    String // base64 — GCM tag
+
+  status          SessionStatus @default(ACTIVE)
+  issuedAt        DateTime      @default(now())
+  expiresAt       DateTime // our best estimate; refined by observed 401s
+  lastValidatedAt DateTime?
+  failureCount    Int           @default(0)
+
+  @@index([status, expiresAt]) // the sync worker's claim query
+}
+
+// ---------------------------------------------------------------------------
+// Academic data (per user, refreshed by sync)
+// ---------------------------------------------------------------------------
+
+enum CourseKind {
+  THEORY
+  PRACTICAL
+  PROJECT
+}
+
+model Course {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  code    String // e.g. 21CSC201J
+  title   String
+  credits Int        @default(0)
+  faculty String? // "Dr. S. Joseph James (101959)" — name carries a staff id
+  // Hyphen-joined and possibly multi-hour: "A", "P9-P10-", "L11-L12-".
+  slot    String?
+  room    String?
+  kind    CourseKind @default(THEORY)
+
+  // Straight from the portal's course table. Category drives the credit-type
+  // breakdown students care about at graduation ("Professional Core",
+  // "Basic Science", "Engineering Science", "Mandatory"); academicYear scopes
+  // a course to one semester, e.g. "AY2026-27-ODD", so past semesters can be
+  // retained rather than overwritten on each sync.
+  category     String?
+  academicYear String?
+
+  attendance AttendanceRecord?
+  marks      MarkRecord[]
+  slots      TimetableSlot[]
+
+  @@unique([userId, code, kind]) // a course can appear as both theory and lab
+  @@index([userId])
+}
+
+/// Current attendance for one course. One row per course, overwritten on sync —
+/// history lives in AttendanceSnapshot so we can draw a trend line.
+model AttendanceRecord {
+  id       String @id @default(cuid())
+  courseId String @unique
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  conducted Int   @default(0)
+  present   Int   @default(0)
+  absent    Int   @default(0)
+  onDuty    Int   @default(0) // OD is counted as present by SRM
+  percentage Float @default(0)
+
+  capturedAt DateTime @default(now())
+}
+
+/// Append-only history, one row per sync where the numbers actually moved.
+/// Cheap to write and it's what makes "your attendance since August" possible.
+model AttendanceSnapshot {
+  id       String   @id @default(cuid())
+  courseId String
+  conducted Int
+  present   Int
+  percentage Float
+  takenAt  DateTime @default(now())
+
+  @@index([courseId, takenAt])
+}
+
+model MarkRecord {
+  id       String @id @default(cuid())
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  testCode  String // CLA-1, CLA-2, Model Exam, ...
+  maxMarks  Float
+  obtained  Float?
+  weightage Float? // contribution to the internal total
+
+  capturedAt DateTime @default(now())
+
+  @@unique([courseId, testCode])
+  @@index([courseId])
+}
+
+// ---------------------------------------------------------------------------
+// Schedule
+// ---------------------------------------------------------------------------
+
+/// One cell of the timetable grid: on day order N, slot S, this user has this
+/// course. startMin/endMin are minutes from midnight so interval intersection
+/// for the group free-hour view is plain integer maths, not date parsing.
+model TimetableSlot {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dayOrder Int // 1..5
+  slotCode String
+  startMin Int // 480 = 08:00
+  endMin   Int
+  room     String?
+
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  // Keyed on start time, not slot code: a double-period lab occupies two
+  // consecutive hours under ONE slot code, so (user, day, slotCode) collides.
+  // "You cannot be in two rooms at the same moment" is the real invariant.
+  @@unique([userId, dayOrder, startMin])
+  @@index([userId, dayOrder])
+}
+
+/// Campus-wide, not per-user: which day order each calendar date carries, plus
+/// holidays and exam dates. Synced once and shared by everyone, so one fetch
+/// serves the whole user base.
+model AcademicDay {
+  id       String   @id @default(cuid())
+  date     DateTime @unique @db.Date
+  dayOrder Int? // null on a holiday — the day order does not advance
+  label    String? // "Pongal", "CLA-2 begins"
+  isHoliday Boolean @default(false)
+
+  @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Social — the free-hour feature
+// ---------------------------------------------------------------------------
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+/// Mutual, opt-in, and the ONLY thing that lets one user see another's
+/// schedule. Stored one row per pair with a canonical ordering enforced at the
+/// application layer so (a,b) and (b,a) can't both exist.
+model Friendship {
+  id String @id @default(cuid())
+
+  requesterId String
+  requester   User   @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User   @relation("addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Operations
+// ---------------------------------------------------------------------------
+
+enum SyncStatus {
+  QUEUED
+  RUNNING
+  OK
+  FAILED
+  SESSION_DEAD
+}
+
+model SyncRun {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status     SyncStatus @default(QUEUED)
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  error      String?
+  wrote      Json? // { courses: 8, marks: 24, attendance: 8 }
+
+  @@index([userId, startedAt])
+  @@index([status])
+}
+
+model AuditLog {
+  id      String   @id @default(cuid())
+  actorId String?
+  action  String // "session.store", "friend.accept", "admin.impersonate"
+  target  String?
+  meta    Json?
+  at      DateTime @default(now())
+
+  @@index([actorId, at])
+  @@index([action, at])
+}
