@@ -1,5 +1,17 @@
 import * as cheerio from "cheerio";
 
+import {
+  clean,
+  labelledValues,
+  orNull,
+  PortalParseError,
+  tableRows,
+  toNullableNumber,
+  toNumber,
+} from "./html";
+
+export { PortalParseError } from "./html";
+
 /**
  * Parsers for the SRM Student Portal (sp.srmist.edu.in).
  *
@@ -83,37 +95,22 @@ export interface PortalCalendarDay {
   remark: string | null;
 }
 
-export class PortalParseError extends Error {
-  constructor(what: string) {
-    super(
-      `Could not find the ${what} table. The Student Portal's markup has probably changed — ` +
-        `re-capture lib/sources/fixtures/student-portal.ts and update the parser.`
-    );
-    this.name = "PortalParseError";
-  }
+export interface PortalProfile {
+  name: string | null;
+  regNo: string | null;
+  email: string | null;
+  /** The part before @srmist.edu.in — our primary key for a student. */
+  netId: string | null;
+  program: string | null;
+  institution: string | null;
+  semester: number | null;
+  section: string | null;
+  batch: string | null;
 }
 
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
-
-const clean = (value: string): string => value.replace(/\s+/g, " ").trim();
-
-/** The portal writes "-" for "no value". Treat it as absent, not as text. */
-const orNull = (value: string): string | null => {
-  const text = clean(value);
-  return text === "" || text === "-" ? null : text;
-};
-
-function toNumber(value: string): number {
-  const parsed = Number.parseFloat(clean(value).replace(/,/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function toNullableNumber(value: string): number | null {
-  const parsed = Number.parseFloat(clean(value).replace(/,/g, ""));
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
@@ -158,43 +155,6 @@ function parseDayOrder(value: string): number | null {
   if (!match) return null;
   const order = Number(match[1]);
   return order >= 1 && order <= 5 ? order : null;
-}
-
-type Row = string[];
-
-/**
- * Find the one table whose header row contains every required phrase, and
- * return its body rows as arrays of cell text.
- */
-function tableRows(html: string, required: string[], label: string): Row[] {
-  const $ = cheerio.load(html);
-
-  const match = $("table")
-    .toArray()
-    .find((table) => {
-      const header = $(table)
-        .find("tr")
-        .first()
-        .find("th, td")
-        .toArray()
-        .map((cell) => clean($(cell).text()).toLowerCase())
-        .join(" | ");
-
-      return required.every((needle) => header.includes(needle.toLowerCase()));
-    });
-
-  if (!match) throw new PortalParseError(label);
-
-  return $(match)
-    .find("tbody tr")
-    .toArray()
-    .map((tr) =>
-      $(tr)
-        .find("td")
-        .toArray()
-        .map((td) => clean($(td).text()))
-    )
-    .filter((cells) => cells.length > 0 && cells.some((cell) => cell !== ""));
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +251,48 @@ export function parseMarksDetail(html: string): PortalMarkComponent[] {
         maxMark,
       };
     });
+}
+
+// ---------------------------------------------------------------------------
+// Student profile — form 1
+// ---------------------------------------------------------------------------
+
+/**
+ * The profile block, which is what tells us WHO a payload belongs to.
+ *
+ * Keyed on netId (the part before @srmist.edu.in) rather than the registration
+ * number: it's what a student types to sign in anywhere else at SRM, it's
+ * stable, and Academia identifies people by it too, so the two sources join
+ * cleanly.
+ */
+export function parseProfile(html: string): PortalProfile {
+  const values = labelledValues(html);
+  const get = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = values.get(key);
+      if (value && value !== "-") return value;
+    }
+    return null;
+  };
+
+  const email = get("email id", "email")?.toLowerCase() ?? null;
+
+  return {
+    name: get("student name", "name"),
+    regNo: get("register no.", "register no", "registration number"),
+    email,
+    netId: email ? (email.split("@")[0] ?? null) : null,
+    program: get("program", "programme"),
+    institution: get("institution"),
+    semester: (() => {
+      const raw = get("semester");
+      const match = raw?.match(/(\d+)/);
+      const value = match ? Number(match[1]) : null;
+      return value !== null && value >= 1 && value <= 10 ? value : null;
+    })(),
+    section: get("section"),
+    batch: get("batch"),
+  };
 }
 
 // ---------------------------------------------------------------------------

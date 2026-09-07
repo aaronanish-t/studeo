@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Studeo Sync",
+  "version": "0.1.0",
+  "description": "Sends your own SRM attendance, marks and timetable to Studeo. Your password and session never leave your browser.",
+
+  "permissions": ["storage", "activeTab"],
+
+  "host_permissions": [
+    "https://sp.srmist.edu.in/*",
+    "https://academia.srmist.edu.in/*",
+    "http://localhost:3000/*"
+  ],
+
+  "background": { "service_worker": "background.js" },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Studeo Sync"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://sp.srmist.edu.in/*"],
+      "js": ["content-student-portal.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://academia.srmist.edu.in/*"],
+      "js": ["content-academia.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

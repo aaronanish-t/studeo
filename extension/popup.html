@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Studeo Sync</title>
+    <style>
+      /* Deliberately mirrors the app: warm paper, ink, no accent hue. */
+      :root {
+        --ground: #f7f6f3;
+        --surface: #ffffff;
+        --border: #e4e2dc;
+        --text: #141414;
+        --muted: #5a5a58;
+        --faint: #8d8b86;
+        --safe: #147a4f;
+        --under: #b3261e;
+        color-scheme: light;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 16px;
+        background: var(--ground);
+        color: var(--text);
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: -0.01em; }
+      p  { margin: 0; color: var(--muted); }
+
+      button {
+        width: 100%;
+        margin-top: 14px;
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: #1a1a1a;
+        color: #fff;
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) { background: #000; }
+      button:disabled { opacity: 0.55; cursor: default; }
+
+      #status {
+        margin-top: 12px;
+        padding: 9px 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        font-size: 12px;
+      }
+      #status[hidden] { display: none; }
+      .ok    { color: var(--safe); }
+      .error { color: var(--under); }
+
+      footer {
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      label { display: block; margin-top: 10px; font-size: 11px; color: var(--faint); }
+      input {
+        width: 100%;
+        margin-top: 3px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        font: inherit;
+        font-size: 12px;
+        background: var(--surface);
+        color: var(--text);
+      }
+      details { margin-top: 12px; }
+      summary { cursor: pointer; font-size: 11px; color: var(--faint); }
+    </style>
+  </head>
+
+  <body>
+    <h1>Studeo Sync</h1>
+    <p>Sends your own portal pages to Studeo.</p>
+
+    <button id="sync">Sync now</button>
+    <div id="status" hidden></div>
+
+    <details>
+      <summary>Settings</summary>
+      <label for="endpoint">Studeo address</label>
+      <input id="endpoint" type="url" placeholder="http://localhost:3000" />
+    </details>
+
+    <footer>
+      Your password and session stay in this browser. Only the pages you can
+      already see are sent.
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
