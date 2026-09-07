@@ -33,7 +33,7 @@ export default async function DemoTimetablePage({
       today={today}
       basePath="/demo"
       badge={
-        <span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted">
+        <span className="hidden rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted sm:inline">
           Demo data
         </span>
       }

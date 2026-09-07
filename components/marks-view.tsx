@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { NavMenu } from "@/components/nav-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 import type { MarksData } from "@/lib/marks";
@@ -25,12 +26,13 @@ export function MarksView({
 }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-6 pb-24">
-      <header className="flex items-center justify-between py-8">
+      <header className="flex items-center justify-between gap-3 py-8">
         <Link href={basePath || "/"} className="text-lg font-semibold tracking-tight">
           Studeo
         </Link>
         <div className="flex items-center gap-2">
           {badge}
+          <NavMenu basePath={basePath} />
           <ThemeToggle />
         </div>
       </header>
@@ -141,13 +143,10 @@ export function MarksView({
         </ul>
       ) : null}
 
-      <Link
-        // The demo's dashboard is /demo; a signed-in one is /dashboard.
-        href={basePath || "/dashboard"}
-        className="mt-12 inline-block text-sm text-text-muted underline underline-offset-4 hover:text-text"
-      >
-        Back to dashboard
-      </Link>
+      <p className="mt-10 text-xs text-text-faint">
+        Internal marks only — these are the components your faculty enter during the
+        semester, not your end-semester result.
+      </p>
     </div>
   );
 }
