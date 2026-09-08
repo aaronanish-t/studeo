@@ -7,11 +7,12 @@ import {
   DAY_START_MIN,
   expandCourseSlot,
   HOUR_TIMES,
+  BATCH_1_GRID,
+  BATCH_2_GRID,
   isBatchSupported,
   knownSlots,
   parseBatch,
   placementsForSlot,
-  UNIFIED_GRID,
   UNSUPPORTED_BATCHES,
 } from "./slot-grid";
 
@@ -46,37 +47,65 @@ describe("batches", () => {
     expect(parseBatch("7")).toBeNull();
   });
 
-  it("knows which batches it can actually place", () => {
+  it("can place both captured batches", () => {
     expect(isBatchSupported(1)).toBe(true);
-    expect(isBatchSupported(2)).toBe(false);
+    expect(isBatchSupported(2)).toBe(true);
     expect(isBatchSupported(null)).toBe(false);
   });
 
-  it("refuses to place an uncaptured batch rather than guessing", () => {
-    // THE point of this whole mechanism. Batch 2 runs on different timings, so
-    // resolving its slots against Batch 1's grid would produce a complete,
-    // plausible, entirely wrong week — with no error, because every slot code
-    // still resolves. Nothing is the only honest answer.
+  it("has nothing left to capture", () => {
+    expect(UNSUPPORTED_BATCHES).toEqual([]);
+  });
+
+  it("places the SAME slot at different times in each batch", () => {
+    // The reason this mechanism exists. Slot A is Day 1 hours 1-2 for Batch 1,
+    // and Day 1 hours 6-7 for Batch 2 — the morning/afternoon mirror that lets
+    // one set of rooms serve twice the students. Resolving a Batch 2 student
+    // against Batch 1's grid would put every class hours out of place, with no
+    // error, because the slot code resolves either way.
+    const a1 = placementsForSlot("A", 1).map((p) => `${p.dayOrder}/${p.hour}`);
+    const a2 = placementsForSlot("A", 2).map((p) => `${p.dayOrder}/${p.hour}`);
+
+    expect(a1).toEqual(["1/1", "1/2", "2/10", "3/3"]);
+    expect(a2).toEqual(["1/6", "1/7", "2/5", "3/8"]);
+    expect(a1).not.toEqual(a2);
+  });
+
+  it("refuses to place a batch it doesn't hold", () => {
     const courses = [{ courseCode: "21MAB201T", slot: "A", room: "TP 506" }];
 
+    // Both captured batches place; an unknown one yields nothing rather than
+    // silently defaulting to Batch 1.
     expect(buildTimetable(courses, 1).length).toBeGreaterThan(0);
-    expect(buildTimetable(courses, 2)).toEqual([]);
+    expect(buildTimetable(courses, 2).length).toBeGreaterThan(0);
+    expect(buildTimetable(courses, 3 as unknown as 1)).toEqual([]);
   });
 
-  it("returns no placements for a slot in an uncaptured batch", () => {
-    expect(placementsForSlot("A", 1).length).toBeGreaterThan(0);
-    expect(placementsForSlot("A", 2)).toEqual([]);
+  it("shares one hour clock between batches", () => {
+    // Worth pinning: "staggered batches" sounds like the period times should
+    // differ, and they don't — both portal pages print the same header. What
+    // staggers is which slot sits in which hour.
+    expect(BATCH_1_GRID[0]).toHaveLength(HOUR_TIMES.length);
+    expect(BATCH_2_GRID[0]).toHaveLength(HOUR_TIMES.length);
   });
 
-  it("lists the batches still needing capture", () => {
-    expect(UNSUPPORTED_BATCHES).toEqual([2]);
+  it("keeps practical slots disjoint between batches", () => {
+    // Not something to rely on, but a useful sanity check on the capture: a lab
+    // slot belongs to exactly one batch, which is what stops two cohorts being
+    // sent to the same room at the same time.
+    const labs = (batch: 1 | 2) =>
+      new Set(knownSlots(batch).filter((slot) => /^P\d+$/.test(slot)));
+
+    const overlap = [...labs(1)].filter((slot) => labs(2).has(slot));
+    expect(overlap).toEqual([]);
   });
 });
 
 describe("the grid itself", () => {
   it("covers five day orders of twelve hours", () => {
-    expect(UNIFIED_GRID).toHaveLength(5);
-    for (const row of UNIFIED_GRID) expect(row).toHaveLength(12);
+    expect(BATCH_1_GRID).toHaveLength(5);
+    for (const row of BATCH_1_GRID) expect(row).toHaveLength(12);
+    for (const row of BATCH_2_GRID) expect(row).toHaveLength(12);
     expect(HOUR_TIMES).toHaveLength(12);
   });
 

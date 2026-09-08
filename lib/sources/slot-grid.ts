@@ -82,13 +82,20 @@ export function parseBatch(value: string | null | undefined): Batch | null {
 }
 
 /**
- * The grid exactly as the portal prints it — rows are Day 1-5, columns are
- * hours 1-12. Kept verbatim so it can be checked against the page by eye;
- * the index below is derived, never hand-maintained.
+ * The grids exactly as the portal prints them — rows are Day 1-5, columns are
+ * hours 1-12. Kept verbatim so they can be checked against the page by eye;
+ * the indexes below are derived, never hand-maintained.
  *
- * Captured from "Unified Time Table 2025-Batch 1".
+ * Captured from "Unified Time Table 2025-Batch 1" and "…2025 Batch 2".
+ *
+ * The two batches share HOUR_TIMES. That was worth checking rather than
+ * assuming — "staggered batches" sounds like the clock should move — but both
+ * pages print the identical 08:00 / 08:50 / 09:45 … header. What actually
+ * staggers is the CONTENT: Batch 1 has theory in the morning and labs in the
+ * afternoon, and Batch 2 is the mirror image, which is how one set of rooms
+ * serves twice the students.
  */
-export const UNIFIED_GRID: ReadonlyArray<ReadonlyArray<string>> = [
+export const BATCH_1_GRID: ReadonlyArray<ReadonlyArray<string>> = [
   ["A", "A / X", "F / X", "F", "G", "P6", "P7", "P8", "P9", "P10", "L11", "L12"],
   ["P11", "P12/X", "P13/X", "P14", "P15", "B", "B", "G", "G", "A", "L21", "L22"],
   ["C", "C / X", "A / X", "D", "B", "P26", "P27", "P28", "P29", "P30", "L31", "L32"],
@@ -96,16 +103,20 @@ export const UNIFIED_GRID: ReadonlyArray<ReadonlyArray<string>> = [
   ["E", "E / X", "C / X", "F", "D", "P46", "P47", "P48", "P49", "P50", "L51", "L52"],
 ];
 
-/**
- * Batch 2's grid and hour times have NOT been captured.
- *
- * Both differ — the whole point of batches is staggering, so the period clock
- * moves too, not just which slot sits where. Filling this in needs the same
- * page read while signed in as, or with visibility of, a Batch 2 student.
- */
+export const BATCH_2_GRID: ReadonlyArray<ReadonlyArray<string>> = [
+  ["P1", "P2/X", "P3/X", "P4", "P5", "A", "A", "F", "F", "G", "L11", "L12"],
+  ["B", "B / X", "G / X", "G", "A", "P16", "P17", "P18", "P19", "P20", "L21", "L22"],
+  ["P21", "P22/X", "P23/X", "P24", "P25", "C", "C", "A", "D", "B", "L31", "L32"],
+  ["D", "D / X", "B / X", "E", "C", "P36", "P37", "P38", "P39", "P40", "L41", "L42"],
+  ["P41", "P42/X", "P43/X", "P44", "P45", "E", "E", "C", "F", "D", "L51", "L52"],
+];
+
+/** @deprecated Ambiguous now there are two. Use BATCH_1_GRID. */
+export const UNIFIED_GRID = BATCH_1_GRID;
+
 const GRIDS: Record<Batch, ReadonlyArray<ReadonlyArray<string>> | null> = {
-  1: UNIFIED_GRID,
-  2: null,
+  1: BATCH_1_GRID,
+  2: BATCH_2_GRID,
 };
 
 /** Batches we can actually place a timetable for. */
