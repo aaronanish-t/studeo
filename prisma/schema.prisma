@@ -45,6 +45,16 @@ model User {
   year      Int?
   section   String?
 
+  /**
+   * SRM's cohort batch, 1 or 2.
+   *
+   * Load-bearing, not decorative: the batches run on DIFFERENT slot grids, so
+   * placing a Batch 2 student's courses against Batch 1's grid yields a
+   * complete, plausible, wrong timetable. Timetable derivation refuses unless
+   * we hold the grid for this student's batch.
+   */
+  batch Int?
+
   role   Role    @default(STUDENT)
   isDemo Boolean @default(false) // seeded accounts backing the public demo
 

@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { parseCourseTable } from "./sources/academia-portal";
-import { buildTimetable } from "./sources/slot-grid";
+import { buildTimetable, isBatchSupported, parseBatch } from "./sources/slot-grid";
 import {
   parseAttendance,
   parseCalendar,
@@ -83,6 +83,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
       regNo: profile.regNo,
       program: profile.program,
       section: profile.section,
+      batch: parseBatch(profile.batch),
       year: profile.semester ? Math.ceil(profile.semester / 2) : null,
       lastSyncedAt: new Date(),
     },
@@ -92,6 +93,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
       ...(profile.regNo ? { regNo: profile.regNo } : {}),
       ...(profile.program ? { program: profile.program } : {}),
       ...(profile.section ? { section: profile.section } : {}),
+      ...(parseBatch(profile.batch) ? { batch: parseBatch(profile.batch) } : {}),
       ...(profile.semester ? { year: Math.ceil(profile.semester / 2) } : {}),
       lastSyncedAt: new Date(),
     },
@@ -111,7 +113,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
 
   try {
     if (payload.coursesHtml) {
-      const result = await ingestCourses(user.id, payload.coursesHtml);
+      const result = await ingestCourses(user.id, payload.coursesHtml, user.batch);
       wrote.courses += result.courses;
       wrote.timetableSlots += result.slots;
     }
@@ -156,7 +158,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
 
 // ---------------------------------------------------------------------------
 
-async function ingestCourses(userId: string, html: string) {
+async function ingestCourses(userId: string, html: string, batch: number | null) {
   const rows = parseCourseTable(html);
   if (rows.length === 0) return { courses: 0, slots: 0 };
 
@@ -199,13 +201,28 @@ async function ingestCourses(userId: string, html: string) {
     courses.map((course) => [`${course.code}|${course.slot ?? ""}`, course.id])
   );
 
-  const placements = buildTimetable(
-    courses.map((course) => ({
-      courseCode: `${course.code}|${course.slot ?? ""}`,
-      slot: course.slot,
-      room: course.room,
-    }))
-  );
+  // Placement depends on the student's BATCH — the batches run on different
+  // grids, so an unknown or uncaptured batch must yield no timetable rather
+  // than Batch 1's. buildTimetable enforces that; this is the honest read of
+  // what came back.
+  const resolvedBatch = parseBatch(batch === null ? null : String(batch));
+  const placements = isBatchSupported(resolvedBatch)
+    ? buildTimetable(
+        courses.map((course) => ({
+          courseCode: `${course.code}|${course.slot ?? ""}`,
+          slot: course.slot,
+          room: course.room,
+        })),
+        resolvedBatch
+      )
+    : [];
+
+  // Only clear the existing week when we can rebuild it. Wiping a student's
+  // timetable because this sync couldn't place it would turn "we don't know
+  // your batch" into "you have no classes".
+  if (placements.length === 0 && !isBatchSupported(resolvedBatch)) {
+    return { courses: rows.length, slots: 0 };
+  }
 
   await prisma.timetableSlot.deleteMany({ where: { userId } });
   await prisma.timetableSlot.createMany({

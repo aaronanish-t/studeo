@@ -62,9 +62,31 @@ export const DAY_END_MIN = HOUR_TIMES[HOUR_TIMES.length - 1].endMin;
 export const TIMELINE_END_MIN = 16 * 60 + 50;
 
 /**
+ * SRM runs its cohorts in BATCHES with different timings.
+ *
+ * This matters more than it sounds. The grid below is Batch 1's, and a Batch 2
+ * student's courses placed against it would land in the wrong hours — with no
+ * error, because every slot code still resolves. A confidently wrong timetable
+ * is worse than no timetable in an app whose entire purpose is telling you when
+ * you are free, so an uncaptured batch resolves to nothing rather than to
+ * Batch 1's answer.
+ */
+export type Batch = 1 | 2;
+
+export function parseBatch(value: string | null | undefined): Batch | null {
+  const match = (value ?? "").match(/(\d+)/);
+  if (!match) return null;
+
+  const batch = Number(match[1]);
+  return batch === 1 || batch === 2 ? batch : null;
+}
+
+/**
  * The grid exactly as the portal prints it — rows are Day 1-5, columns are
  * hours 1-12. Kept verbatim so it can be checked against the page by eye;
  * the index below is derived, never hand-maintained.
+ *
+ * Captured from "Unified Time Table 2025-Batch 1".
  */
 export const UNIFIED_GRID: ReadonlyArray<ReadonlyArray<string>> = [
   ["A", "A / X", "F / X", "F", "G", "P6", "P7", "P8", "P9", "P10", "L11", "L12"],
@@ -73,6 +95,27 @@ export const UNIFIED_GRID: ReadonlyArray<ReadonlyArray<string>> = [
   ["P31", "P32/X", "P33/X", "P34", "P35", "D", "D", "B", "E", "C", "L41", "L42"],
   ["E", "E / X", "C / X", "F", "D", "P46", "P47", "P48", "P49", "P50", "L51", "L52"],
 ];
+
+/**
+ * Batch 2's grid and hour times have NOT been captured.
+ *
+ * Both differ — the whole point of batches is staggering, so the period clock
+ * moves too, not just which slot sits where. Filling this in needs the same
+ * page read while signed in as, or with visibility of, a Batch 2 student.
+ */
+const GRIDS: Record<Batch, ReadonlyArray<ReadonlyArray<string>> | null> = {
+  1: UNIFIED_GRID,
+  2: null,
+};
+
+/** Batches we can actually place a timetable for. */
+export function isBatchSupported(batch: Batch | null): batch is Batch {
+  return batch !== null && GRIDS[batch] !== null;
+}
+
+export const UNSUPPORTED_BATCHES: Batch[] = (Object.keys(GRIDS) as unknown[] as Batch[])
+  .map(Number)
+  .filter((batch): batch is Batch => GRIDS[batch as Batch] === null);
 
 export interface SlotPlacement {
   slot: string;
@@ -101,10 +144,12 @@ export function expandCourseSlot(slot: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-const INDEX: ReadonlyMap<string, SlotPlacement[]> = (() => {
+function buildIndex(
+  grid: ReadonlyArray<ReadonlyArray<string>>
+): ReadonlyMap<string, SlotPlacement[]> {
   const index = new Map<string, SlotPlacement[]>();
 
-  UNIFIED_GRID.forEach((row, rowIndex) => {
+  grid.forEach((row, rowIndex) => {
     const dayOrder = rowIndex + 1;
 
     row.forEach((cell, columnIndex) => {
@@ -128,15 +173,27 @@ const INDEX: ReadonlyMap<string, SlotPlacement[]> = (() => {
   });
 
   return index;
-})();
-
-/** Every (day, hour) this slot occupies across the week. */
-export function placementsForSlot(slot: string): SlotPlacement[] {
-  return INDEX.get(slot.trim().toUpperCase()) ?? [];
 }
 
-export function knownSlots(): string[] {
-  return [...INDEX.keys()].sort();
+const INDEXES = new Map<Batch, ReadonlyMap<string, SlotPlacement[]>>(
+  (Object.entries(GRIDS) as Array<[string, ReadonlyArray<ReadonlyArray<string>> | null]>)
+    .filter((entry): entry is [string, ReadonlyArray<ReadonlyArray<string>>] => entry[1] !== null)
+    .map(([batch, grid]) => [Number(batch) as Batch, buildIndex(grid)])
+);
+
+/**
+ * Every (day, hour) this slot occupies across the week, for a given batch.
+ *
+ * An uncaptured batch returns nothing. That is deliberate — see the note on
+ * Batch above — and callers must treat an empty result as "we don't know",
+ * not as "this student has no classes".
+ */
+export function placementsForSlot(slot: string, batch: Batch = 1): SlotPlacement[] {
+  return INDEXES.get(batch)?.get(slot.trim().toUpperCase()) ?? [];
+}
+
+export function knownSlots(batch: Batch = 1): string[] {
+  return [...(INDEXES.get(batch)?.keys() ?? [])].sort();
 }
 
 export interface CourseSlotInput {
@@ -159,13 +216,20 @@ export interface TimetableEntry extends SlotPlacement {
  * theory and lab under overlapping slots) must not produce two entries for one
  * moment, or the free-hour sweep counts a single student as two blockers.
  */
-export function buildTimetable(courses: CourseSlotInput[]): TimetableEntry[] {
+export function buildTimetable(
+  courses: CourseSlotInput[],
+  batch: Batch = 1
+): TimetableEntry[] {
+  // No grid for this batch means no honest answer. Returning Batch 1's
+  // placements here would produce a complete, plausible, wrong week.
+  if (!isBatchSupported(batch)) return [];
+
   const seen = new Set<string>();
   const entries: TimetableEntry[] = [];
 
   for (const course of courses) {
     for (const code of expandCourseSlot(course.slot)) {
-      for (const placement of placementsForSlot(code)) {
+      for (const placement of placementsForSlot(code, batch)) {
         const key = `${placement.dayOrder}:${placement.startMin}:${course.courseCode}`;
         if (seen.has(key)) continue;
         seen.add(key);
