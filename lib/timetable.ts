@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { isBatchSupported, parseBatch } from "./sources/slot-grid";
 
 /**
  * A student's own day, as an unbroken sequence of periods and gaps.
@@ -38,6 +39,13 @@ export type TimetableBlock = ClassBlock | GapBlock;
 
 export interface TimetableDay {
   dayOrder: number;
+  /**
+   * False when we don't hold the slot grid for this student's batch.
+   *
+   * Distinct from "no classes today". An empty day is a fact; an unplaceable
+   * batch is us not knowing, and the two must not look the same on screen.
+   */
+  batchSupported: boolean;
   blocks: TimetableBlock[];
   /**
    * Teaching periods. One row each, and the number a student says out loud —
@@ -57,9 +65,13 @@ export async function getTimetableDay(
 ): Promise<TimetableDay | null> {
   const user = await prisma.user.findUnique({
     where: { netId },
-    select: { id: true },
+    select: { id: true, batch: true },
   });
   if (!user) return null;
+
+  const batchSupported = isBatchSupported(
+    parseBatch(user.batch === null ? null : String(user.batch))
+  );
 
   const slots = await prisma.timetableSlot.findMany({
     where: { userId: user.id, dayOrder },
@@ -110,6 +122,7 @@ export async function getTimetableDay(
 
   return {
     dayOrder,
+    batchSupported,
     blocks,
     classCount: classes.length,
     teachingMin: classes.reduce((sum, block) => sum + block.durationMin, 0),

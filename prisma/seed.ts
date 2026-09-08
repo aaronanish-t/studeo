@@ -41,6 +41,10 @@ async function main() {
         program: student.program,
         year: student.year,
         section: student.section,
+        // Demo timetables are placed against Batch 1's grid, so the row has to
+        // say Batch 1. Leaving it null would make the seeded data incoherent:
+        // a student with a timetable we could not have derived for them.
+        batch: 1,
         isDemo: true,
         lastSyncedAt: new Date(),
       },

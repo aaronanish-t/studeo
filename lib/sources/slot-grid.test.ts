@@ -7,9 +7,12 @@ import {
   DAY_START_MIN,
   expandCourseSlot,
   HOUR_TIMES,
+  isBatchSupported,
   knownSlots,
+  parseBatch,
   placementsForSlot,
   UNIFIED_GRID,
+  UNSUPPORTED_BATCHES,
 } from "./slot-grid";
 
 /**
@@ -28,6 +31,47 @@ const REAL_COURSES = [
   { courseCode: "21CSC201J", slot: "P9-P10-", room: "CLS 403" },
   { courseCode: "21CSC202J", slot: "P33-P34-", room: "UB 713B" },
 ];
+
+describe("batches", () => {
+  it("parses the batch off a profile value", () => {
+    expect(parseBatch("1")).toBe(1);
+    expect(parseBatch("2")).toBe(2);
+    expect(parseBatch("Batch 2")).toBe(2);
+  });
+
+  it("returns null for anything it doesn't recognise", () => {
+    expect(parseBatch(null)).toBeNull();
+    expect(parseBatch("")).toBeNull();
+    expect(parseBatch("-")).toBeNull();
+    expect(parseBatch("7")).toBeNull();
+  });
+
+  it("knows which batches it can actually place", () => {
+    expect(isBatchSupported(1)).toBe(true);
+    expect(isBatchSupported(2)).toBe(false);
+    expect(isBatchSupported(null)).toBe(false);
+  });
+
+  it("refuses to place an uncaptured batch rather than guessing", () => {
+    // THE point of this whole mechanism. Batch 2 runs on different timings, so
+    // resolving its slots against Batch 1's grid would produce a complete,
+    // plausible, entirely wrong week — with no error, because every slot code
+    // still resolves. Nothing is the only honest answer.
+    const courses = [{ courseCode: "21MAB201T", slot: "A", room: "TP 506" }];
+
+    expect(buildTimetable(courses, 1).length).toBeGreaterThan(0);
+    expect(buildTimetable(courses, 2)).toEqual([]);
+  });
+
+  it("returns no placements for a slot in an uncaptured batch", () => {
+    expect(placementsForSlot("A", 1).length).toBeGreaterThan(0);
+    expect(placementsForSlot("A", 2)).toEqual([]);
+  });
+
+  it("lists the batches still needing capture", () => {
+    expect(UNSUPPORTED_BATCHES).toEqual([2]);
+  });
+});
 
 describe("the grid itself", () => {
   it("covers five day orders of twelve hours", () => {

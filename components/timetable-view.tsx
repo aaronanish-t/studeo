@@ -103,7 +103,23 @@ export function TimetableView({
 
       {/* ---- the day ------------------------------------------------------ */}
       <section className="mt-10">
-        {day.blocks.length === 0 ? (
+        {!day.batchSupported ? (
+          // Deliberately not "no classes". We don't hold this student's batch
+          // grid, so we don't know when their classes are — and saying "no
+          // classes" would be a confident wrong answer rather than an honest
+          // absent one.
+          <div className="rounded-xl border border-edge/30 bg-edge-soft px-4 py-5">
+            <p className="text-sm font-medium text-edge">
+              We don&rsquo;t have the timetable grid for your batch yet.
+            </p>
+            <p className="mt-1.5 max-w-[54ch] text-sm text-edge">
+              SRM runs Batch 1 and Batch 2 on different timings, and only Batch 1&rsquo;s
+              grid has been captured. Showing you Batch 1&rsquo;s hours would place every
+              class at the wrong time, so nothing is shown instead. Attendance and marks
+              are unaffected.
+            </p>
+          </div>
+        ) : day.blocks.length === 0 ? (
           <p className="rounded-xl border border-border bg-surface px-4 py-8 text-center text-sm text-text-muted">
             No classes on Day {dayOrder}.
           </p>
