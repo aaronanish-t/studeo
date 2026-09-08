@@ -344,13 +344,14 @@ async function ingestMarks(
       // Drop the placeholder total now that the real components are here.
       // Keeping both would leave the course ambiguous: is TOTAL a component or
       // a rollup? getMarks would have to guess, and one day guess wrong.
-      await prisma.markRecord
-        .delete({
-          where: { courseId_testCode: { courseId: course.id, testCode: "TOTAL" } },
-        })
-        .catch(() => {
-          // Nothing to remove — this course never had a placeholder.
-        });
+      //
+      // deleteMany, not delete: there is usually nothing to remove (this course
+      // never had a placeholder), and delete THROWS on a missing row. Catching
+      // that works but Prisma still logs an error for it, so every clean sync
+      // printed a stack trace that looked like a failure and wasn't.
+      await prisma.markRecord.deleteMany({
+        where: { courseId: course.id, testCode: "TOTAL" },
+      });
 
       written += components.length;
       continue;

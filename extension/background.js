@@ -23,7 +23,7 @@ async function findTab(pattern) {
   return tabs[0] ?? null;
 }
 
-function ask(tabId, type) {
+function sendMessage(tabId, type) {
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, { type }, (response) => {
       if (chrome.runtime.lastError) {
@@ -33,6 +33,32 @@ function ask(tabId, type) {
       resolve(response ?? { ok: false, error: "NO_RESPONSE" });
     });
   });
+}
+
+/**
+ * Ask a tab's content script to do something, injecting it first if it isn't
+ * there.
+ *
+ * Chrome only auto-injects declared content scripts into pages loaded AFTER the
+ * extension was installed. Anyone who installs Studeo with the portal already
+ * open — which is everyone, since you have to be signed in to install it
+ * usefully — has a tab with no receiver, and sendMessage fails with "Could not
+ * establish connection". Telling them to reload the tab works but is a poor
+ * first impression, so inject on demand and retry instead.
+ */
+async function ask(tabId, type, file) {
+  const first = await sendMessage(tabId, type);
+  if (first.ok || !/receiving end does not exist|could not establish connection/i.test(first.error ?? "")) {
+    return first;
+  }
+
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
+  } catch (error) {
+    return { ok: false, error: `INJECT_FAILED: ${error.message}` };
+  }
+
+  return sendMessage(tabId, type);
 }
 
 async function sync() {
@@ -45,7 +71,7 @@ async function sync() {
     };
   }
 
-  const sp = await ask(spTab.id, "STUDEO_COLLECT_SP");
+  const sp = await ask(spTab.id, "STUDEO_COLLECT_SP", "content-student-portal.js");
   if (!sp.ok) {
     return {
       ok: false,
@@ -62,7 +88,7 @@ async function sync() {
   // timetable, but attendance and marks are still worth syncing on their own.
   const academiaTab = await findTab("https://academia.srmist.edu.in/*");
   if (academiaTab) {
-    const academia = await ask(academiaTab.id, "STUDEO_COLLECT_ACADEMIA");
+    const academia = await ask(academiaTab.id, "STUDEO_COLLECT_ACADEMIA", "content-academia.js");
     if (academia.ok) Object.assign(payload, academia.payload);
   }
 
