@@ -14,7 +14,8 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "smoke:ingest": "tsx scripts/smoke-ingest.ts"
+    "smoke:ingest": "tsx scripts/smoke-ingest.ts",
+    "check:sync": "tsx scripts/check-sync.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
