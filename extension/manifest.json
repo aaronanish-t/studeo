@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Sends your own SRM attendance, marks and timetable to Studeo. Your password and session never leave your browser.",
 
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "scripting"],
 
   "host_permissions": [
     "https://sp.srmist.edu.in/*",
