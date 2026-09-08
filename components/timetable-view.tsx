@@ -110,13 +110,14 @@ export function TimetableView({
           // absent one.
           <div className="rounded-xl border border-edge/30 bg-edge-soft px-4 py-5">
             <p className="text-sm font-medium text-edge">
-              We don&rsquo;t have the timetable grid for your batch yet.
+              We couldn&rsquo;t work out which batch you&rsquo;re in.
             </p>
             <p className="mt-1.5 max-w-[54ch] text-sm text-edge">
-              SRM runs Batch 1 and Batch 2 on different timings, and only Batch 1&rsquo;s
-              grid has been captured. Showing you Batch 1&rsquo;s hours would place every
-              class at the wrong time, so nothing is shown instead. Attendance and marks
-              are unaffected.
+              Batch 1 and Batch 2 run the same hours in a different order, so the same
+              slot is a morning class for one and an afternoon class for the other.
+              Without knowing yours we&rsquo;d be guessing, and a guess here looks exactly
+              like an answer. Sync again with the Student Portal open — your batch is on
+              your profile page. Attendance and marks are unaffected.
             </p>
           </div>
         ) : day.blocks.length === 0 ? (
