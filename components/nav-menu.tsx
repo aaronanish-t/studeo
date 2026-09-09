@@ -32,7 +32,7 @@ const SECTIONS: Section[] = [
   { label: "Marks", path: "/marks" },
 ];
 
-/** The demo's overview lives at /demo; a signed-in one at /dashboard. */
+/** The preview's overview lives at /preview; a signed-in one at /dashboard. */
 function hrefFor(section: Section, basePath: string): string {
   if (section.path === "") return basePath || "/dashboard";
   return `${basePath}${section.path}`;
@@ -43,7 +43,7 @@ export function NavMenu({ basePath }: { basePath: string }) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
 
-  // Longest match wins: "/demo/marks" must resolve to Marks, not Overview,
+  // Longest match wins: "/preview/marks" must resolve to Marks, not Overview,
   // and Overview is a prefix of every other path under the same base.
   const current =
     [...SECTIONS]

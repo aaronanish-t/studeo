@@ -6,9 +6,10 @@ import { getGroupDay } from "@/lib/group";
 export const metadata = { title: "Free hours" };
 export const dynamic = "force-dynamic";
 
-const DEMO_NET_ID = "demo01";
+/** The seeded sample account. Internal name; nothing user-facing says "demo". */
+const SAMPLE_NET_ID = "demo01";
 
-export default async function DemoFreeHoursPage({
+export default async function PreviewFreeHoursPage({
   searchParams,
 }: {
   searchParams: Promise<{ day?: string }>;
@@ -17,19 +18,15 @@ export default async function DemoFreeHoursPage({
   const requested = Number(params.day);
   const dayOrder = requested >= 1 && requested <= 5 ? requested : 1;
 
-  const group = await getGroupDay(DEMO_NET_ID, dayOrder);
+  const group = await getGroupDay(SAMPLE_NET_ID, dayOrder);
   if (!group) notFound();
 
   return (
     <FreeHoursView
       group={group}
       dayOrder={dayOrder}
-      basePath="/demo"
-      badge={
-        <span className="hidden rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted sm:inline">
-          Demo data
-        </span>
-      }
+      basePath="/preview"
+      footnote="Sample data · not a real student"
     />
   );
 }

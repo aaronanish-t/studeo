@@ -58,7 +58,7 @@ function track(min: number, window: GroupDay["window"]): number {
 }
 
 /**
- * The group free-hour view, shared by the demo and a signed-in account.
+ * The group free-hour view, shared by the preview and a signed-in account.
  *
  * The answer is legible as alignment — the point where every row falls quiet at
  * once — rather than as something you read off a list.
@@ -68,12 +68,20 @@ export function FreeHoursView({
   dayOrder,
   basePath,
   badge,
+  footnote,
 }: {
   group: GroupDay;
   dayOrder: number;
-  /** "/demo" or "" — prefixes every onward link. */
+  /** "/preview" or "" — prefixes every onward link. */
   basePath: string;
   badge?: React.ReactNode;
+  /**
+   * A quiet line at the very bottom. The preview uses it to say the data is
+   * invented — in the footer rather than as a header badge, so the page reads
+   * as a finished product while nobody can mistake a seeded student's
+   * attendance for a real person's record.
+   */
+  footnote?: React.ReactNode;
 }) {
   const { window } = group;
   const best = group.common[0] ?? null;
@@ -269,6 +277,9 @@ export function FreeHoursView({
       <p className="mt-12 text-xs text-text-faint">
         Schedules are only visible between students who have accepted each other.
       </p>
+      {footnote ? (
+        <p className="mt-6 text-xs text-text-faint">{footnote}</p>
+      ) : null}
     </div>
   );
 }

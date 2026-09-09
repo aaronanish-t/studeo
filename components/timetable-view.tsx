@@ -9,7 +9,7 @@ import type { AcademicToday } from "@/lib/today";
 import { cn, formatClock } from "@/lib/ui";
 
 /**
- * A student's day, shared by the demo and a signed-in account.
+ * A student's day, shared by the preview and a signed-in account.
  *
  * One row per teaching period, deliberately unmerged — a lab in P9 and P10
  * shows as two rows, which reads straight against the timetable a student
@@ -22,18 +22,25 @@ export function TimetableView({
   today,
   basePath,
   badge,
+  footnote,
 }: {
   day: TimetableDay;
   dayOrder: number;
   today: AcademicToday;
-  /** "/demo" or "" — prefixes every onward link. */
+  /** "/preview" or "" — prefixes every onward link. */
   basePath: string;
   badge?: React.ReactNode;
+  /**
+   * A quiet line at the very bottom. The preview uses it to say the data is
+   * invented — in the footer rather than as a header badge, so the page reads
+   * as a finished product while nobody can mistake a seeded student's
+   * attendance for a real person's record.
+   */
+  footnote?: React.ReactNode;
 }) {
   const isToday = today.dayOrder === dayOrder;
 
   return (
-
     <div className="mx-auto w-full max-w-2xl px-6 pb-24">
       <header className="flex items-center justify-between gap-3 py-8">
         <Link href={basePath || "/"} className="text-lg font-semibold tracking-tight">
@@ -197,6 +204,10 @@ export function TimetableView({
           &rarr;
         </span>
       </Link>
+
+      {footnote ? (
+        <p className="mt-6 text-xs text-text-faint">{footnote}</p>
+      ) : null}
     </div>
-    );
+  );
 }

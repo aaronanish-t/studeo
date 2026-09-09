@@ -7,7 +7,7 @@ import { DEFAULT_THRESHOLD } from "@/lib/attendance";
 import { cn, STATUS_STYLES } from "@/lib/ui";
 
 /**
- * Attendance in full, shared by the demo and a signed-in account.
+ * Attendance in full, shared by the preview and a signed-in account.
  *
  * The dashboard answers "am I in trouble" in one number. This page answers
  * "where exactly, and what do I do about it" — every course, its hours, and the
@@ -17,10 +17,18 @@ export function AttendanceView({
   data,
   basePath,
   badge,
+  footnote,
 }: {
   data: DashboardData;
   basePath: string;
   badge?: React.ReactNode;
+  /**
+   * A quiet line at the very bottom. The preview uses it to say the data is
+   * invented — in the footer rather than as a header badge, so the page reads
+   * as a finished product while nobody can mistake a seeded student's
+   * attendance for a real person's record.
+   */
+  footnote?: React.ReactNode;
 }) {
   const overall = data.overall;
 
@@ -113,6 +121,9 @@ export function AttendanceView({
         Attendance is counted in hours, not classes — a lab is two or three. On-duty
         hours count as attended.
       </p>
+      {footnote ? (
+        <p className="mt-6 text-xs text-text-faint">{footnote}</p>
+      ) : null}
     </div>
   );
 }

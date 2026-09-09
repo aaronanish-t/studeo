@@ -68,10 +68,10 @@ export default function NotFound() {
           Back to Studeo
         </Link>
         <Link
-          href="/demo"
+          href="/preview"
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-text transition-colors hover:border-border-strong hover:bg-surface"
         >
-          Try the demo
+          See it working
         </Link>
       </div>
     </main>

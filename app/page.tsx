@@ -26,10 +26,10 @@ export default function Home() {
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
           <Link
-            href="/demo"
+            href="/preview"
             className="rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-hover"
           >
-            See the demo
+            See it working
           </Link>
           <span className="text-sm text-text-faint">No sign-in needed</span>
         </div>

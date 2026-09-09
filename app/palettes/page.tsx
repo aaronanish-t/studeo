@@ -222,7 +222,7 @@ function Preview({ palette }: { palette: Palette }) {
 
         <div className="mt-5 flex items-center gap-2">
           <span className="rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-fg">
-            See the demo
+            See it working
           </span>
           <span className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-text">
             Sign in

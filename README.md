@@ -4,7 +4,7 @@
 
 _Latin `studeo` — "I study."_
 
-> **Live demo:** _(deploy first, then link — the demo needs no credentials)_
+> **Live preview:** _(deploy first, then link — it needs no credentials)_
 > **Not affiliated with SRM Institute of Science and Technology.** Independent student project.
 
 ---
@@ -27,7 +27,7 @@ Studeo syncs that data once and answers the questions students actually have:
 | **Free-hour finder** | Intersects your timetable with your friends' — and surfaces near misses, since with five people there often is no perfect overlap. |
 | **Timetable** | Day-order aware, one row per period, with gaps stated rather than left as whitespace. |
 | **Internal marks** | Every component as it's entered, with course and overall totals. |
-| **Demo mode** | The full product on seeded data. No credentials, one click. |
+| **Preview** | The full product on sample data. No credentials, one click. |
 | **Light and dark** | Light by default — deliberately, see below. |
 
 ## Architecture
@@ -142,7 +142,7 @@ npm run db:seed
 npm run dev
 ```
 
-The seed populates five demo students, so the app is fully explorable at `/demo` without ever touching a real SRM login.
+The seed populates five sample students, so the app is fully explorable at `/preview` without ever touching a real SRM login.
 
 <details>
 <summary>If <code>next build</code> dies with <code>0xc0000409</code> or a PostCSS subprocess crash</summary>
@@ -178,7 +178,7 @@ Vercel, with Postgres on Supabase.
 
 - **Pin the function region to Mumbai.** [`vercel.json`](vercel.json) sets `bom1` to match the database. Functions in Washington talking to a database in Mumbai pay a 200 ms round trip on *every query*, and a dashboard makes several.
 - Set every variable from `.env.example` in the project settings, with `NEXT_PUBLIC_APP_URL` as the real deployed origin — the extension builds its claim URL from it.
-- A daily [keepalive cron](app/api/cron/keepalive/route.ts) stops a free Supabase project pausing itself after a week of inactivity. A paused project doesn't wake on its own, and the failure mode is a dead demo on a link you sent weeks ago.
+- A daily [keepalive cron](app/api/cron/keepalive/route.ts) stops a free Supabase project pausing itself after a week of inactivity. A paused project doesn't wake on its own, and the failure mode is a dead site on a link you sent weeks ago.
 
 ## Known limitations
 
