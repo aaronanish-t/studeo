@@ -83,9 +83,9 @@ export default function ConnectPage() {
       </section>
 
       <p className="mt-10 text-sm text-text-muted">
-        Just looking around?{" "}
-        <Link href="/demo" className="text-text underline underline-offset-4">
-          Try the demo instead
+        Not ready to install?{" "}
+        <Link href="/preview" className="text-text underline underline-offset-4">
+          See it working first
         </Link>{" "}
         — no sign-in, no extension.
       </p>

@@ -7,7 +7,7 @@ import type { MarksData } from "@/lib/marks";
 import { cn } from "@/lib/ui";
 
 /**
- * Internal marks, shared by the demo and a signed-in account.
+ * Internal marks, shared by the preview and a signed-in account.
  *
  * No status colours here, deliberately. Green/amber/red mean attendance —
  * comfortable, on the line, below 75% — and a mark of 4.2/5 is not a warning
@@ -18,11 +18,19 @@ export function MarksView({
   marks,
   basePath,
   badge,
+  footnote,
 }: {
   marks: MarksData;
-  /** "/demo" or "" — prefixes onward links. */
+  /** "/preview" or "" — prefixes onward links. */
   basePath: string;
   badge?: React.ReactNode;
+  /**
+   * A quiet line at the very bottom. The preview uses it to say the data is
+   * invented — in the footer rather than as a header badge, so the page reads
+   * as a finished product while nobody can mistake a seeded student's
+   * attendance for a real person's record.
+   */
+  footnote?: React.ReactNode;
 }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-6 pb-24">
@@ -147,6 +155,9 @@ export function MarksView({
         Internal marks only — these are the components your faculty enter during the
         semester, not your end-semester result.
       </p>
+      {footnote ? (
+        <p className="mt-6 text-xs text-text-faint">{footnote}</p>
+      ) : null}
     </div>
   );
 }

@@ -7,9 +7,10 @@ import { getAcademicDay } from "@/lib/today";
 export const metadata = { title: "Timetable" };
 export const dynamic = "force-dynamic";
 
-const DEMO_NET_ID = "demo01";
+/** The seeded sample account. Internal name; nothing user-facing says "demo". */
+const SAMPLE_NET_ID = "demo01";
 
-export default async function DemoTimetablePage({
+export default async function PreviewTimetablePage({
   searchParams,
 }: {
   searchParams: Promise<{ day?: string }>;
@@ -23,7 +24,7 @@ export default async function DemoTimetablePage({
   const dayOrder =
     requested >= 1 && requested <= 5 ? requested : (today.dayOrder ?? 1);
 
-  const day = await getTimetableDay(DEMO_NET_ID, dayOrder);
+  const day = await getTimetableDay(SAMPLE_NET_ID, dayOrder);
   if (!day) notFound();
 
   return (
@@ -31,12 +32,8 @@ export default async function DemoTimetablePage({
       day={day}
       dayOrder={dayOrder}
       today={today}
-      basePath="/demo"
-      badge={
-        <span className="hidden rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-muted sm:inline">
-          Demo data
-        </span>
-      }
+      basePath="/preview"
+      footnote="Sample data · not a real student"
     />
   );
 }

@@ -7,11 +7,11 @@ import type { DashboardData } from "@/lib/dashboard";
 import { cn, formatClock, formatLongDate, relativeTo, STATUS_STYLES } from "@/lib/ui";
 
 /**
- * The dashboard, shared by the public demo and a signed-in student.
+ * The dashboard, shared by the preview and a signed-in student.
  *
  * The two differ only in where their data comes from and where their links
- * point. Keeping one component means the demo can't quietly drift from the real
- * thing — which matters more here than usual, because the demo is what most
+ * point. Keeping one component means the preview can't quietly drift from the real
+ * thing — which matters more here than usual, because the preview is what most
  * people will ever see.
  */
 export function DashboardView({
@@ -19,13 +19,21 @@ export function DashboardView({
   nowMin,
   basePath,
   badge,
+  footnote,
 }: {
   data: DashboardData;
   /** Minutes since midnight, IST — passed in so the page controls the clock. */
   nowMin: number;
-  /** "/demo" or "" — prefixes the onward links. */
+  /** "/preview" or "" — prefixes the onward links. */
   basePath: string;
   badge?: React.ReactNode;
+  /**
+   * A quiet line at the very bottom. The preview uses it to say the data is
+   * invented — in the footer rather than as a header badge, so the page reads
+   * as a finished product while nobody can mistake a seeded student's
+   * attendance for a real person's record.
+   */
+  footnote?: React.ReactNode;
 }) {
   const nextClass = data.schedule.find((slot) => slot.endMin > nowMin) ?? null;
   const later = data.schedule.filter(
@@ -228,6 +236,9 @@ export function DashboardView({
             })}
           </ul>
         </section>
+      ) : null}
+      {footnote ? (
+        <p className="mt-6 text-xs text-text-faint">{footnote}</p>
       ) : null}
     </div>
   );
