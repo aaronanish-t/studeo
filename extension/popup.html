@@ -80,6 +80,33 @@
       }
       details { margin-top: 12px; }
       summary { cursor: pointer; font-size: 11px; color: var(--faint); }
+
+      /* The diagnostic report. Wide, dense, and monospaced on purpose — this is
+         evidence to be copied, not prose to be read in a 300px popup. */
+      #report {
+        max-height: 220px;
+        margin-top: 8px;
+        padding: 8px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+        font: 10px/1.45 ui-monospace, "SF Mono", Consolas, monospace;
+        white-space: pre;
+        color: var(--muted);
+      }
+      #report b { font-weight: 600; color: var(--text); }
+      #report .bad { color: var(--under); }
+
+      #copy {
+        margin-top: 8px;
+        padding: 6px 10px;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      #copy:hover:not(:disabled) { background: var(--surface); color: var(--text); }
     </style>
   </head>
 
@@ -89,6 +116,12 @@
 
     <button id="sync">Sync now</button>
     <div id="status" hidden></div>
+
+    <details id="diagnostics" hidden>
+      <summary>What happened</summary>
+      <div id="report"></div>
+      <button id="copy">Copy report</button>
+    </details>
 
     <details>
       <summary>Settings</summary>

@@ -48,7 +48,10 @@ function sendMessage(tabId, type) {
  */
 async function ask(tabId, type, file) {
   const first = await sendMessage(tabId, type);
-  if (first.ok || !/receiving end does not exist|could not establish connection/i.test(first.error ?? "")) {
+  if (
+    first.ok ||
+    !/receiving end does not exist|could not establish connection/i.test(first.error ?? "")
+  ) {
     return first;
   }
 
@@ -61,17 +64,51 @@ async function ask(tabId, type, file) {
   return sendMessage(tabId, type);
 }
 
+/**
+ * One report per sync, whether it worked or not.
+ *
+ * The whole point is that a student can press one button, copy one block of
+ * text, and have it name the actual failure. Everything in here is structural —
+ * URLs, HTTP statuses, byte counts, table counts — so it stays safe to paste
+ * into a chat or an issue.
+ */
+function report({ base, sp, academia, ingest }) {
+  return {
+    at: new Date().toISOString(),
+    studeo: base,
+    steps: [
+      ...(sp?.trace ?? []).map((entry) => ({ where: "student portal", ...entry })),
+      ...(academia?.trace ?? []).map((entry) => ({ where: "academia", ...entry })),
+      ...(ingest ? [{ where: "studeo", ...ingest }] : []),
+    ],
+  };
+}
+
 async function sync() {
+  const base = await endpoint();
+
   const spTab = await findTab("https://sp.srmist.edu.in/*");
   if (!spTab) {
     return {
       ok: false,
-      error:
-        "Open the SRM Student Portal in a tab and sign in, then run this again.",
+      error: "Open the SRM Student Portal in a tab and sign in, then run this again.",
+      report: report({
+        base,
+        sp: { trace: [{ step: "find tab", ok: false, why: "no sp.srmist.edu.in tab is open" }] },
+      }),
     };
   }
 
   const sp = await ask(spTab.id, "STUDEO_COLLECT_SP", "content-student-portal.js");
+
+  // Academia is optional: without it there are no course slots and therefore no
+  // timetable, but attendance and marks are still worth syncing on their own.
+  // Collected even when the Student Portal failed, so one report covers both.
+  const academiaTab = await findTab("https://academia.srmist.edu.in/*");
+  const academia = academiaTab
+    ? await ask(academiaTab.id, "STUDEO_COLLECT_ACADEMIA", "content-academia.js")
+    : { ok: false, error: "NO_TAB", trace: [{ step: "find tab", ok: false, why: "no academia.srmist.edu.in tab is open" }] };
+
   if (!sp.ok) {
     return {
       ok: false,
@@ -79,30 +116,51 @@ async function sync() {
         sp.error === "SIGNED_OUT"
           ? "Your Student Portal session has expired. Sign in again, then run this."
           : `Couldn't read the Student Portal (${sp.error}).`,
+      report: report({ base, sp, academia }),
     };
   }
 
-  const payload = { ...sp.payload };
+  const payload = { ...sp.payload, ...(academia.ok ? academia.payload : {}) };
 
-  // Academia is optional: without it there are no course slots and therefore no
-  // timetable, but attendance and marks are still worth syncing on their own.
-  const academiaTab = await findTab("https://academia.srmist.edu.in/*");
-  if (academiaTab) {
-    const academia = await ask(academiaTab.id, "STUDEO_COLLECT_ACADEMIA", "content-academia.js");
-    if (academia.ok) Object.assign(payload, academia.payload);
+  let response;
+  try {
+    response = await fetch(`${base}/api/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    // Distinguished from every other failure because the fix is completely
+    // different: nothing is wrong with the portal or the parsing, Studeo just
+    // isn't answering at the address the popup is pointed at.
+    return {
+      ok: false,
+      error: `Couldn't reach Studeo at ${base}. Is it running, and is the address in this popup right?`,
+      report: report({
+        base,
+        sp,
+        academia,
+        ingest: { step: "POST /api/ingest", ok: false, error: error.message },
+      }),
+    };
   }
-
-  const base = await endpoint();
-  const response = await fetch(`${base}/api/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
 
   const result = await response.json().catch(() => ({}));
 
+  const ingestStep = {
+    step: "POST /api/ingest",
+    ok: response.ok,
+    status: response.status,
+    sent: Object.keys(payload).filter((key) => payload[key]),
+    ...(response.ok ? { wrote: result.wrote } : { error: result.error }),
+  };
+
   if (!response.ok) {
-    return { ok: false, error: result.error ?? `Studeo returned ${response.status}.` };
+    return {
+      ok: false,
+      error: result.error ?? `Studeo returned ${response.status}.`,
+      report: report({ base, sp, academia, ingest: ingestStep }),
+    };
   }
 
   await chrome.storage.local.set({
@@ -112,14 +170,24 @@ async function sync() {
     hadTimetable: Boolean(payload.coursesHtml),
   });
 
-  return { ok: true, ...result };
+  return {
+    ok: true,
+    ...result,
+    hadTimetable: Boolean(payload.coursesHtml),
+    report: report({ base, sp, academia, ingest: ingestStep }),
+  };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "STUDEO_SYNC") return false;
 
   sync()
-    .then(sendResponse)
+    .then(async (result) => {
+      // Kept even on success: "it synced but my marks are missing" is answered
+      // by the same report, and by then the moment has passed.
+      await chrome.storage.local.set({ lastReport: result.report });
+      sendResponse(result);
+    })
     .catch((error) => sendResponse({ ok: false, error: error.message }));
 
   return true;
