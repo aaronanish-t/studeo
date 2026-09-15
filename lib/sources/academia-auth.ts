@@ -135,6 +135,27 @@ async function lookup(
 }
 
 /**
+ * Follow the service redirect so Creator issues its own cookies.
+ *
+ * Without this hop the jar authenticates against accounts.zoho but not against
+ * the app, and every page fetch comes back as the login screen — a failure that
+ * looks like a parser bug and isn't.
+ */
+async function bridgeToCreator(jar: string, location?: string): Promise<string> {
+  const target = location ? new URL(location, ORIGIN).toString() : SERVICE_URL;
+
+  try {
+    const bridge = await fetch(target, { method: "GET", headers: { cookie: jar } });
+    const extra = pairsFrom(setCookies(bridge));
+    return extra ? mergeCookies(jar, extra) : jar;
+  } catch {
+    // Non-fatal: we hold IAM cookies, and the page fetch will say if they
+    // aren't enough.
+    return jar;
+  }
+}
+
+/**
  * Step 3 — the password, and the redirect that turns an IAM session into a
  * Creator one.
  *
@@ -174,6 +195,23 @@ async function submitPassword(
     };
   }
 
+  // Zoho signals a successful password two different ways, and only one of them
+  // is JSON. The other is a bare 302 to the service URL with an empty body —
+  // which, parsed as JSON, throws and gets reported as an outage. A correct
+  // password must not surface as "Academia didn't respond".
+  if (
+    [301, 302, 303, 307, 308].includes(response.status) &&
+    (location.includes("redirectFromLogin") ||
+      location.includes("/portal/academia-academic-services"))
+  ) {
+    return { ok: true, cookie: await bridgeToCreator(sessionJar, location) };
+  }
+
+  // A redirect back to the sign-in page is a refusal, not an outage.
+  if (location.includes("/signin")) {
+    return { ok: false, failure: "BAD_PASSWORD" };
+  }
+
   const raw = await response.text();
   let body: {
     status_code?: number;
@@ -200,19 +238,7 @@ async function submitPassword(
   }
 
   if (body.status_code === 200 || body.status_code === 201) {
-    let cookie = sessionJar;
-
-    // The bridge: follow the service redirect so Creator issues its own cookies.
-    try {
-      const bridge = await fetch(SERVICE_URL, { method: "GET", headers: { cookie } });
-      const extra = pairsFrom(setCookies(bridge));
-      if (extra) cookie = mergeCookies(cookie, extra);
-    } catch {
-      // Non-fatal: we hold IAM cookies, and the page fetch will say if they
-      // aren't enough.
-    }
-
-    return { ok: true, cookie };
+    return { ok: true, cookie: await bridgeToCreator(sessionJar) };
   }
 
   const message = (body.localized_message ?? body.message ?? "").toLowerCase();

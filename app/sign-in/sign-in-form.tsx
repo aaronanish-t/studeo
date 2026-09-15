@@ -107,9 +107,14 @@ function PasswordForm({
       </button>
 
       {error ? (
-        <p id={errorId} className="mt-4 max-w-[54ch] text-sm text-under">
-          {error}
-        </p>
+        <div className="mt-4">
+          <p id={errorId} className="max-w-[54ch] text-sm text-under">
+            {error}
+          </p>
+          {state.code ? (
+            <p className="mt-1 font-mono text-xs text-text-faint">{state.code}</p>
+          ) : null}
+        </div>
       ) : (
         <p className="mt-4 max-w-[54ch] text-sm text-text-muted">
           The same password you use for Academia. It&rsquo;s sent to SRM to sign you in
