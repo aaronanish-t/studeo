@@ -40,3 +40,28 @@ export const prisma: PrismaClient = globalForPrisma.prisma ?? createClient();
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
+
+/**
+ * Whether an error means "Postgres couldn't be reached at all", as opposed to
+ * a query that ran and failed.
+ *
+ * With the pg driver adapter, a socket that never connects surfaces as a
+ * PrismaClientKnownRequestError carrying the Node error code (ETIMEDOUT,
+ * ECONNREFUSED) rather than a Prisma P-code — so we look at the code, not the
+ * class. The distinction matters because the two failures need opposite
+ * responses: a parser bug is ours to fix, while an unreachable database is
+ * usually the network the student is on. SRM's campus WiFi blocks outbound
+ * 5432 and 6543, which turned every local sync attempt from campus into a
+ * generic 500 until this was told apart.
+ */
+export function isDatabaseUnreachable(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code !== "string") return false;
+
+  return (
+    // Node socket-level codes, passed through by the pg adapter.
+    ["ETIMEDOUT", "ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH"].includes(code) ||
+    // Prisma's own: can't reach, timed out, server closed the connection.
+    ["P1001", "P1002", "P1017"].includes(code)
+  );
+}

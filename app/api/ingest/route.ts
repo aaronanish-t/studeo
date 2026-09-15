@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isDatabaseUnreachable } from "@/lib/db";
 import { ingest, IngestError } from "@/lib/ingest";
 import { signClaimToken } from "@/lib/session";
 import { PortalParseError } from "@/lib/sources/html";
@@ -115,6 +116,21 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: error.message },
         { status: 422, headers: CORS_HEADERS }
+      );
+    }
+
+    // Not our bug and not the student's: Postgres never answered. 503 so the
+    // extension's report says "database", not "something went wrong", and
+    // names the usual cause — the portal pages were fetched fine, so the one
+    // thing left to blame is the network between this server and the database.
+    if (isDatabaseUnreachable(error)) {
+      console.error("ingest: database unreachable", error);
+      return NextResponse.json(
+        {
+          error:
+            "Studeo can't reach its database right now. If you're running Studeo locally on campus WiFi, that network blocks the database ports — try a hotspot, or use the deployed site.",
+        },
+        { status: 503, headers: CORS_HEADERS }
       );
     }
 
