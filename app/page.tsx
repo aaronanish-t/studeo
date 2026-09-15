@@ -7,7 +7,15 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6">
       <header className="flex items-center justify-between py-8">
         <span className="text-lg font-semibold tracking-tight">Studeo</span>
-        <ThemeToggle />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/sign-in"
+            className="text-sm font-medium text-text-muted transition-colors hover:text-text"
+          >
+            Sign in
+          </Link>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col justify-center py-16">

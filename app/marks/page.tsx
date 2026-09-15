@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function MarksPage() {
   const session = await currentSession();
-  if (!session) redirect("/connect");
+  if (!session) redirect("/sign-in");
 
   const marks = await getMarks(session.netId);
   if (!marks) redirect("/dashboard");

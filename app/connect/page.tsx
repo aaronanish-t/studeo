@@ -83,6 +83,14 @@ export default function ConnectPage() {
       </section>
 
       <p className="mt-10 text-sm text-text-muted">
+        Done this before on another device?{" "}
+        <Link href="/sign-in" className="text-text underline underline-offset-4">
+          Sign in by email
+        </Link>{" "}
+        instead — the extension is only needed once.
+      </p>
+
+      <p className="mt-3 text-sm text-text-muted">
         Not ready to install?{" "}
         <Link href="/preview" className="text-text underline underline-offset-4">
           See it working first

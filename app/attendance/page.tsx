@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AttendancePage() {
   const session = await currentSession();
-  if (!session) redirect("/connect");
+  if (!session) redirect("/sign-in");
 
   const data = await getDashboard(session.netId);
   if (!data) redirect("/dashboard");
