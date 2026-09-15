@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import type { AcademiaProfile } from "./sources/academia-page";
 import { parseCourseTable } from "./sources/academia-portal";
 import { buildTimetable, isBatchSupported, parseBatch } from "./sources/slot-grid";
 import {
@@ -143,6 +144,97 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
     await refreshOverall(user.id);
 
     return { userId: user.id, netId: profile.netId, wrote };
+  } catch (error) {
+    await prisma.syncRun.update({
+      where: { id: run.id },
+      data: {
+        status: "FAILED",
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The Academia sign-in path: a student proved their password to SRM's IAM, and
+ * we fetched their course table server-side.
+ *
+ * Narrower than `ingest` on purpose. Academia can give us the course table and
+ * the profile and nothing else — attendance and marks live behind a page SRM
+ * gates for students — so this writes courses and the derived timetable, and
+ * deliberately leaves every attendance row alone rather than zeroing what the
+ * extension put there.
+ */
+export async function ingestFromAcademia(params: {
+  netId: string;
+  profile: AcademiaProfile;
+  coursesHtml: string;
+}): Promise<IngestResult> {
+  const { netId, profile, coursesHtml } = params;
+
+  const user = await prisma.user.upsert({
+    where: { netId },
+    create: {
+      netId,
+      email: `${netId}@srmist.edu.in`,
+      name: profile.name ?? netId,
+      regNo: profile.regNo,
+      program: profile.program,
+      department: profile.department,
+      section: profile.section,
+      batch: parseBatch(profile.batch),
+      year: profile.semester ? Math.ceil(profile.semester / 2) : null,
+    },
+    update: {
+      // Never overwrite a known value with a null from a page that printed the
+      // block differently this time.
+      ...(profile.name ? { name: profile.name } : {}),
+      ...(profile.regNo ? { regNo: profile.regNo } : {}),
+      ...(profile.program ? { program: profile.program } : {}),
+      ...(profile.department ? { department: profile.department } : {}),
+      ...(profile.section ? { section: profile.section } : {}),
+      ...(parseBatch(profile.batch) ? { batch: parseBatch(profile.batch) } : {}),
+      ...(profile.semester ? { year: Math.ceil(profile.semester / 2) } : {}),
+    },
+  });
+
+  const run = await prisma.syncRun.create({
+    data: { userId: user.id, status: "RUNNING" },
+  });
+
+  const wrote = {
+    courses: 0,
+    attendance: 0,
+    marks: 0,
+    timetableSlots: 0,
+    calendarDays: 0,
+  };
+
+  try {
+    const result = await ingestCourses(user.id, coursesHtml, user.batch);
+    wrote.courses = result.courses;
+    wrote.timetableSlots = result.slots;
+
+    await prisma.syncRun.update({
+      where: { id: run.id },
+      data: {
+        status: "OK",
+        finishedAt: new Date(),
+        durationMs: Date.now() - run.startedAt.getTime(),
+        wrote,
+      },
+    });
+
+    // lastSyncedAt stays where the extension left it: this run refreshed the
+    // timetable, but said nothing about attendance, and the dashboard's "last
+    // synced" is a claim about the numbers.
+    await refreshOverall(user.id);
+
+    return { userId: user.id, netId, wrote };
   } catch (error) {
     await prisma.syncRun.update({
       where: { id: run.id },

@@ -43,8 +43,8 @@ export default async function SignInPage({
       </h1>
 
       <p className="mt-5 max-w-[50ch] text-lg text-text-muted">
-        No password — Studeo never has one to store. Enter your NetID and
-        we&rsquo;ll email a link to your SRM address.
+        Your SRM NetID and password, the same ones Academia takes. Studeo
+        doesn&rsquo;t keep either.
       </p>
 
       <section className="mt-10">
@@ -52,15 +52,22 @@ export default async function SignInPage({
       </section>
 
       <section className="mt-14 border-t border-border pt-8">
-        <h2 className="text-sm font-medium">First time here?</h2>
-        <p className="mt-2 max-w-[54ch] text-sm text-text-muted">
-          A sign-in link only gets you back into an account that exists. Your first
-          visit has to come through the browser extension — it&rsquo;s what reads your
-          attendance and timetable across from SRM.{" "}
+        <h2 className="text-sm font-medium">What this does and doesn&rsquo;t reach</h2>
+        <p className="mt-2 max-w-[56ch] text-sm text-text-muted">
+          Signing in here logs you into <span className="text-text">Academia</span>,
+          which brings your timetable and course list with it. Your{" "}
+          <span className="text-text">attendance and marks live on the Student Portal
+          </span>
+          , and SRM&rsquo;s login there can&rsquo;t be completed by a server — so those
+          arrive through the{" "}
           <Link href="/connect" className="text-text underline underline-offset-4">
-            Set that up
-          </Link>{" "}
-          once on a laptop; after that, this page works from anywhere, phone included.
+            browser extension
+          </Link>
+          , once, on a laptop. After that this page works from anywhere.
+        </p>
+        <p className="mt-3 max-w-[56ch] text-sm text-text-muted">
+          Your password is used for a single request to SRM and is never written down,
+          logged, or kept. Studeo stores no credential of any kind.
         </p>
       </section>
 

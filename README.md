@@ -59,13 +59,17 @@ flowchart TB
 
 ### Four decisions worth explaining
 
-**1. Studeo never logs in to SRM, and deliberately can't.**
+**1. The Student Portal login can't be automated, so it isn't.**
 
-The obvious design is a server-side scraper holding each student's credentials. SRM's Student Portal login blocks it outright: a CAPTCHA, device-fingerprint tokens (`fpPayload` / `fpToken`), per-session randomised field names, and a base64 host allowlist pinning the form to their own domain. Automating past that means defeating bot detection, so Studeo doesn't try.
+SRM's two systems guard their logins very differently, and Studeo's whole shape follows from that.
 
-Instead the **student logs in themselves**, in their own browser, CAPTCHA and all. A [browser extension](extension/) then fetches their own pages and posts the HTML here.
+The **Student Portal** — the only source of attendance and marks — blocks a server-side login outright: a CAPTCHA, device-fingerprint tokens (`fpPayload` / `fpToken`), per-session randomised field names, and a base64 host allowlist pinning the form to their own domain. Automating past that means defeating bot detection, so Studeo doesn't try. The **student logs in themselves**, in their own browser, CAPTCHA and all, and a [browser extension](extension/) fetches their own pages and posts the HTML here.
 
-The security property this buys is stronger than any amount of encryption would have been: **there is no credential to steal.** No password, no session token, no vault. The server holds only the data a student can already read on the portal.
+**Academia** is a Zoho Creator app whose IAM login has neither a CAPTCHA nor fingerprinting, so [`lib/sources/academia-auth.ts`](lib/sources/academia-auth.ts) completes it server-side for the sign-in page. That buys a session and a fresh timetable — and nothing else, because Academia gates attendance behind `page/My_Attendance`, which answers *"Page inaccessible — contact your administrator"* for students.
+
+So: **no credential is ever stored.** No password, no session token, no vault. A password typed into the sign-in page is used for exactly one request to SRM's own IAM and then dropped; everything else arrives through the extension, which never sees a credential at all. Because that page relays a password to a system that isn't ours, it is rate-limited in Postgres rather than in memory ([`lib/throttle.ts`](lib/throttle.ts)) — serverless instances don't share memory, so an in-process counter would reset on every cold start and turn the form into an unthrottled credential-stuffing proxy aimed at the university.
+
+Students who'd rather not type an SRM password into a site that isn't SRM's can take a one-time link emailed to their `@srmist.edu.in` address instead, which also proves the NetID is theirs.
 
 **2. The extension fetches in a content script, not the service worker.**
 
@@ -172,7 +176,7 @@ Note that a local server needs a network that allows outbound Postgres: SRM's ca
 npm test
 ```
 
-128 tests. The parsers run against real captured HTML; the domain logic runs against real published figures.
+144 tests. The parsers run against real captured HTML; the domain logic runs against real published figures.
 
 ## Deployment
 
