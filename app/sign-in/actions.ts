@@ -52,6 +52,13 @@ const NetId = z
 export interface SignInState {
   status: "idle" | "sent" | "error";
   message?: string;
+  /**
+   * A short machine-readable tag for the step that failed, rendered faintly
+   * under the message. Remote debugging of this page means asking a student
+   * what they saw, and "it didn't work" costs a round trip that one token
+   * saves.
+   */
+  code?: string;
   /** Echoed back so the confirmation can say where the link went. */
   sentTo?: string;
 }
@@ -127,7 +134,11 @@ export async function signInWithAcademia(
       await recordSignInFailure(netId, address);
     }
 
-    return { status: "error", message: describeAuthFailure(auth.failure) };
+    return {
+      status: "error",
+      message: describeAuthFailure(auth.failure),
+      code: auth.failure,
+    };
   }
 
   await clearSignInFailures(netId, address);
@@ -136,6 +147,7 @@ export async function signInWithAcademia(
   if (!page.ok || !page.html) {
     return {
       status: "error",
+      code: `COURSE_TABLE_${page.reason ?? "UNKNOWN"}`,
       message:
         page.reason === "SIGNED_OUT"
           ? "Academia accepted the password but wouldn't hand over your pages. Try once more."
@@ -154,6 +166,7 @@ export async function signInWithAcademia(
     console.error("sign-in: academia ingest failed", error);
     return {
       status: "error",
+      code: "INGEST_FAILED",
       message: "Signed in, but saving your timetable failed. Try again in a minute.",
     };
   }
