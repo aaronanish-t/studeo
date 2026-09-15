@@ -9,6 +9,7 @@
   "host_permissions": [
     "https://sp.srmist.edu.in/*",
     "https://academia.srmist.edu.in/*",
+    "https://studeo-eight.vercel.app/*",
     "http://localhost:3000/*"
   ],
 

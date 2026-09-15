@@ -10,7 +10,10 @@
  * student is already looking at.
  */
 
-const DEFAULT_ENDPOINT = "http://localhost:3000";
+// Production. Local development overrides this from the popup's settings —
+// the default has to be the deployed site, because a student installing this
+// from campus can't reach a database at all except through Vercel.
+const DEFAULT_ENDPOINT = "https://studeo-eight.vercel.app";
 
 async function endpoint() {
   const { studeoEndpoint } = await chrome.storage.local.get("studeoEndpoint");
