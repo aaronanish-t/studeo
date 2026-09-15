@@ -34,6 +34,27 @@ enum Role {
   ADMIN
 }
 
+/**
+ * Failed sign-in attempts, keyed by NetID and by client address.
+ *
+ * Load-bearing for safety rather than for product: the Academia sign-in relays
+ * a password to SRM's own IAM, which makes an unthrottled form a
+ * credential-stuffing proxy pointed at the university. Counting failures here
+ * rather than in memory is deliberate — serverless instances don't share
+ * memory, so an in-process counter would reset on every cold start and protect
+ * nobody.
+ */
+model SignInAttempt {
+  /** "netid:at4152" or "ip:203.0.113.4". */
+  key         String    @id
+  count       Int       @default(0)
+  windowStart DateTime  @default(now())
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([lockedUntil])
+}
+
 model User {
   id        String  @id @default(cuid())
   netId     String  @unique // e.g. at4152 — the part before @srmist.edu.in
