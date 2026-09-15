@@ -14,7 +14,7 @@ export default async function TimetablePage({
   searchParams: Promise<{ day?: string }>;
 }) {
   const session = await currentSession();
-  if (!session) redirect("/connect");
+  if (!session) redirect("/sign-in");
 
   const params = await searchParams;
   const today = await getAcademicDay();

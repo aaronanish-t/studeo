@@ -63,6 +63,15 @@ model User {
   lastSyncedAt      DateTime?
   attendanceOverall Float?
 
+  /**
+   * Set the first time a sign-in link sent to <netId>@srmist.edu.in is
+   * opened. The extension proves possession of a portal page; this proves the
+   * inbox — the stronger claim, and the one that makes the NetID theirs.
+   */
+  emailVerifiedAt DateTime?
+  /** Last time a sign-in link was emailed; the sign-in page rate-limits on it. */
+  signInEmailSentAt DateTime?
+
   session       AcademiaSession?
   courses       Course[]
   timetable     TimetableSlot[]

@@ -84,11 +84,33 @@ export async function endSession(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const CLAIM_AUDIENCE = "studeo:claim";
-const CLAIM_TTL = "5m";
 
 /**
- * A single short-lived token handed back to the extension after a successful
- * ingest, which it uses to open Studeo already signed in.
+ * How a claim token reached the student. Recorded in the token so that
+ * consuming it can do the right follow-up: an emailed link proves the
+ * @srmist.edu.in address, an extension link proves nothing new.
+ */
+export type ClaimVia = "extension" | "email";
+
+/** Minutes a claim token lives, by route. */
+export const CLAIM_TTL_MINUTES: Record<ClaimVia, number> = {
+  // Only has to survive the gap between a sync finishing and a tab opening.
+  extension: 5,
+  // Has to survive a walk to the phone and an inbox that's slow to refresh.
+  email: 15,
+};
+
+export interface ClaimClaims extends SessionClaims {
+  via: ClaimVia;
+}
+
+/**
+ * A single short-lived token that opens Studeo already signed in.
+ *
+ * Two things deliver one: the extension, which gets it back from a successful
+ * ingest and opens it in a tab; and the sign-in page, which emails it to the
+ * student's institutional address. Same token, same consumer (/claim), one
+ * difference recorded inside it.
  *
  * The extension can't set our session cookie itself: it posts from a different
  * origin, and a cross-origin cookie would need SameSite=None plus credentialed
@@ -96,23 +118,24 @@ const CLAIM_TTL = "5m";
  * cross-site request. Handing back a token the extension puts in a URL keeps
  * the actual session cookie a plain same-origin affair.
  *
- * Five minutes, because it only has to survive the time between the sync
- * finishing and a browser tab opening. The separate audience means a claim
- * token can never be replayed as a session token, even though both are signed
- * with the same secret.
+ * The separate audience means a claim token can never be replayed as a session
+ * token, even though both are signed with the same secret.
  */
-export async function signClaimToken(claims: SessionClaims): Promise<string> {
-  return new SignJWT({ netId: claims.netId })
+export async function signClaimToken(
+  claims: SessionClaims,
+  via: ClaimVia = "extension"
+): Promise<string> {
+  return new SignJWT({ netId: claims.netId, via })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(claims.userId)
     .setIssuer(ISSUER)
     .setAudience(CLAIM_AUDIENCE)
     .setIssuedAt()
-    .setExpirationTime(CLAIM_TTL)
+    .setExpirationTime(`${CLAIM_TTL_MINUTES[via]}m`)
     .sign(secret());
 }
 
-export async function readClaimToken(token: string): Promise<SessionClaims | null> {
+export async function readClaimToken(token: string): Promise<ClaimClaims | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
@@ -120,7 +143,11 @@ export async function readClaimToken(token: string): Promise<SessionClaims | nul
     });
     if (!payload.sub || typeof payload.netId !== "string") return null;
 
-    return { userId: payload.sub, netId: payload.netId };
+    // Tokens minted before `via` existed carry none; they can only have come
+    // from the extension.
+    const via: ClaimVia = payload.via === "email" ? "email" : "extension";
+
+    return { userId: payload.sub, netId: payload.netId, via };
   } catch {
     return null;
   }
