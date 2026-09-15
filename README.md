@@ -4,7 +4,7 @@
 
 _Latin `studeo` — "I study."_
 
-> **Live preview:** _(deploy first, then link — it needs no credentials)_
+> **Live:** [studeo-eight.vercel.app](https://studeo-eight.vercel.app) — the [preview](https://studeo-eight.vercel.app/preview) needs no credentials.
 > **Not affiliated with SRM Institute of Science and Technology.** Independent student project.
 
 ---
@@ -162,7 +162,9 @@ Not needed on Vercel.
 chrome://extensions → Developer mode → Load unpacked → select extension/
 ```
 
-Then sign in to the Student Portal (and Academia, if you want a timetable), open the extension and press **Sync now**. Set the Studeo address in the popup's settings if you aren't running on `localhost:3000`.
+Then sign in to the Student Portal (and Academia, if you want a timetable), open the extension and press **Sync now**. It talks to the live site by default; to point it at a local `npm run dev`, set the Studeo address in the popup's settings to `http://localhost:3000`.
+
+Note that a local server needs a network that allows outbound Postgres: SRM's campus WiFi blocks ports 5432 and 6543, so from campus every database call from your laptop times out. The deployed site is unaffected — its database connection is made from Vercel's Mumbai region, not from your machine — which is why the extension defaults to it.
 
 ## Tests
 
@@ -170,7 +172,7 @@ Then sign in to the Student Portal (and Academia, if you want a timetable), open
 npm test
 ```
 
-118 tests. The parsers run against real captured HTML; the domain logic runs against real published figures.
+128 tests. The parsers run against real captured HTML; the domain logic runs against real published figures.
 
 ## Deployment
 
