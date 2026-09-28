@@ -9,10 +9,12 @@
 //     answerable by going date -> dayOrder -> timetable. Every feature here
 //     depends on that indirection being modelled honestly.
 //
-//  2. We never store a user's SRM password. We store the Zoho session cookie
-//     they hand us at login, encrypted, with its natural expiry. Background
-//     sync runs while that session is alive; when it dies the user signs in
-//     again. See AcademiaSession and lib/vault.ts.
+//  2. No credential is stored, of any kind. A password typed into the sign-in
+//     page is relayed to SRM's own IAM for one request and dropped; the
+//     extension posts pages the student already fetched, and never sees a
+//     credential at all. There is deliberately no session table here — an
+//     earlier design encrypted Zoho cookies at rest, and not holding them
+//     turned out to be the stronger property.
 
 generator client {
   provider = "prisma-client-js"
@@ -92,8 +94,6 @@ model User {
   emailVerifiedAt DateTime?
   /** Last time a sign-in link was emailed; the sign-in page rate-limits on it. */
   signInEmailSentAt DateTime?
-
-  session       AcademiaSession?
   courses       Course[]
   timetable     TimetableSlot[]
   syncRuns      SyncRun[]
@@ -104,39 +104,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([isDemo])
-}
-
-// ---------------------------------------------------------------------------
-// Credential vault
-// ---------------------------------------------------------------------------
-
-enum SessionStatus {
-  ACTIVE
-  EXPIRED
-  REVOKED
-}
-
-/// The encrypted Zoho session cookie for one user.
-///
-/// Deliberately NOT a password. A leak of this table yields short-lived session
-/// tokens for a student portal, not reusable college logins. Ciphertext is
-/// AES-256-GCM; the key lives only in VAULT_KEY (env) and never in the repo.
-model AcademiaSession {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  ciphertext String // base64 — the serialised cookie jar
-  iv         String // base64 — 12-byte GCM nonce, unique per write
-  authTag    String // base64 — GCM tag
-
-  status          SessionStatus @default(ACTIVE)
-  issuedAt        DateTime      @default(now())
-  expiresAt       DateTime // our best estimate; refined by observed 401s
-  lastValidatedAt DateTime?
-  failureCount    Int           @default(0)
-
-  @@index([status, expiresAt]) // the sync worker's claim query
 }
 
 // ---------------------------------------------------------------------------
