@@ -58,10 +58,33 @@ function candidates() {
   return [...new Set([...discoverTimetablePages(), ...known])];
 }
 
+/**
+ * Find the course-registration table in a document, or return null.
+ *
+ * Matches on a table whose FIRST ROW carries all three headers the server's
+ * parser needs. Testing instead whether the words appear anywhere — which is
+ * what this used to do — passes on Academia's empty page shell, because Zoho
+ * ships those strings as template field names. The cost of that was not a
+ * missed table but a false positive: the fetch below reported success on a
+ * shell, so this script returned 8KB of nothing and never tried the rendered
+ * DOM, which is the only place the table actually exists.
+ */
+const COURSE_TABLE_HEADERS = ["course code", "course title", "slot"];
+
+function findCourseTable(doc) {
+  return (
+    [...doc.querySelectorAll("table")].find((table) => {
+      const header = [...(table.querySelector("tr")?.querySelectorAll("th, td") ?? [])]
+        .map((cell) => cell.textContent.replace(/\s+/g, " ").trim().toLowerCase())
+        .join(" | ");
+
+      return COURSE_TABLE_HEADERS.every((needle) => header.includes(needle));
+    }) ?? null
+  );
+}
+
 function looksLikeCourseTable(html) {
-  // The real page has a course-registration table; a 403 or a login redirect
-  // has neither of these headers.
-  return /Course\s*Code/i.test(html) && /Slot/i.test(html);
+  return findCourseTable(new DOMParser().parseFromString(html, "text/html")) !== null;
 }
 
 /**
@@ -82,6 +105,29 @@ async function collect() {
     path: location.pathname,
     hash: location.hash.slice(0, 60),
     title: document.title.replace(/\s+/g, " ").trim().slice(0, 80),
+  });
+
+  // The rendered DOM first, deliberately.
+  //
+  // Academia is a Zoho Creator SPA: fetching a page URL returns a shell that
+  // the client then fills in. So the copy sitting in front of the student is
+  // the ONLY one with a course table in it, and every fetch below is a
+  // fallback for the case where they're on some other page. Trying the
+  // fetches first is what made this script post 8KB of empty shell.
+  const rendered = findCourseTable(document);
+  if (rendered) {
+    step("rendered DOM", true, {
+      bytes: rendered.outerHTML.length,
+      rows: rendered.querySelectorAll("tr").length,
+      found: true,
+    });
+    return { payload: { coursesHtml: rendered.outerHTML }, trace };
+  }
+
+  step("rendered DOM", false, {
+    tablesOnPage: document.querySelectorAll("table").length,
+    hash: location.hash.slice(0, 60),
+    why: "no table here has Course Code, Course Title and Slot in its first row — open My Time Table in Academia",
   });
 
   const tried = candidates();
@@ -111,22 +157,8 @@ async function collect() {
     }
   }
 
-  // Last resort: the student may already be looking at the table, in which case
-  // it's in the DOM in front of us.
-  const rendered = [...document.querySelectorAll("table")].find((table) =>
-    looksLikeCourseTable(table.outerHTML)
-  );
-
-  if (rendered) {
-    step("rendered DOM", true, { bytes: rendered.outerHTML.length, found: true });
-    return { payload: { coursesHtml: rendered.outerHTML }, trace };
-  }
-
-  step("rendered DOM", false, {
-    tablesOnPage: document.querySelectorAll("table").length,
-    why: "no table on this page has both a Course Code header and a Slot column",
-  });
-
+  // The DOM was already checked at the top — by the time we get here, neither
+  // the rendered page nor any fetched one had a course table.
   throw new Error("NO_TIMETABLE_PAGE");
 }
 

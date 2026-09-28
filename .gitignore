@@ -48,3 +48,6 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Scratch handoff for portal captures — never commit
+capture.txt

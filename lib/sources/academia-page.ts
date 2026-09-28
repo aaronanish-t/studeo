@@ -65,9 +65,46 @@ export function timetablePageCandidates(now: Date = new Date()): string[] {
   ].filter((page, index, all) => all.indexOf(page) === index);
 }
 
-/** The real page has a course-registration table; a rejection has neither header. */
+/**
+ * The headers `parseCourseTable` needs. Kept next to the check below because
+ * the two must ask the same question.
+ */
+const COURSE_TABLE_HEADERS = ["course code", "course title", "slot"];
+
+/**
+ * Locate the course-registration table, or return null.
+ *
+ * This deliberately mirrors `tableRows` — same first-row, same three headers —
+ * so that anything passing this check is guaranteed to parse. The previous
+ * version tested whether the words "Course Code" and "Slot" appeared anywhere
+ * in the document, which Zoho's empty page shell satisfies with its template
+ * field names. That is worse than a check that simply fails: it reported
+ * success on a page with no table at all, so the parser threw a "markup has
+ * changed" error that was nothing of the sort, and the extension never fell
+ * back to reading the rendered DOM because the fetch had already "worked".
+ */
+export function findCourseTable(html: string): string | null {
+  const $ = cheerio.load(html);
+
+  const match = $("table")
+    .toArray()
+    .find((table) => {
+      const header = $(table)
+        .find("tr")
+        .first()
+        .find("th, td")
+        .toArray()
+        .map((cell) => clean($(cell).text()).toLowerCase())
+        .join(" | ");
+
+      return COURSE_TABLE_HEADERS.every((needle) => header.includes(needle));
+    });
+
+  return match ? $.html(match) : null;
+}
+
 export function looksLikeCourseTable(html: string): boolean {
-  return /Course\s*Code/i.test(html) && /Slot/i.test(html);
+  return findCourseTable(html) !== null;
 }
 
 /**

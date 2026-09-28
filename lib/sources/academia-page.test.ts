@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { COURSE_TABLE_HTML } from "./fixtures/academia";
+import { parseCourseTable } from "./academia-portal";
 import {
   decodeAcademiaPage,
+  findCourseTable,
   isLockedPage,
   looksLikeCourseTable,
   parseAcademiaProfile,
@@ -46,9 +49,46 @@ describe("isLockedPage", () => {
 });
 
 describe("looksLikeCourseTable", () => {
-  it("needs both headers, since a page with only one is a different page", () => {
-    expect(looksLikeCourseTable("<th>Course Code</th><th>Slot</th>")).toBe(true);
-    expect(looksLikeCourseTable("<th>Course Code</th><th>Credits</th>")).toBe(false);
+  const REAL = `<table><tr><th>S.No</th><th>Course Code</th><th>Course Title</th>
+    <th>Credit</th><th>Slot</th></tr><tr><td>1</td><td>21MAB201T</td>
+    <td>Transforms</td><td>4</td><td>A</td></tr></table>`;
+
+  it("accepts a table whose first row carries all three headers", () => {
+    expect(looksLikeCourseTable(REAL)).toBe(true);
+  });
+
+  it("rejects Academia's page shell, which names the fields but has no table", () => {
+    // This is the case that broke production: Zoho serves an 8KB shell whose
+    // template markup mentions the column names, the client fills it in
+    // later, and a word-match check called that a course table. The parser
+    // then threw "the markup has probably changed" about a page that was
+    // simply empty, and the extension never fell back to the rendered DOM.
+    const shell = `<div data-field="Course Code"></div><div data-field="Slot"></div>`;
+    expect(looksLikeCourseTable(shell)).toBe(false);
+  });
+
+  it("rejects a table missing one of the three headers", () => {
+    expect(
+      looksLikeCourseTable("<table><tr><th>Course Code</th><th>Credits</th></tr></table>")
+    ).toBe(false);
+  });
+
+  it("agrees with the parser: whatever it accepts, parseCourseTable can read", () => {
+    // The invariant worth protecting. These two drifting apart is precisely
+    // what produced a "success" that threw one step later.
+    expect(looksLikeCourseTable(COURSE_TABLE_HTML)).toBe(true);
+    expect(() => parseCourseTable(COURSE_TABLE_HTML)).not.toThrow();
+    expect(parseCourseTable(COURSE_TABLE_HTML).length).toBeGreaterThan(0);
+  });
+});
+
+describe("findCourseTable", () => {
+  it("returns just the table, so the shell around it is never posted", () => {
+    const page = `<div><p>Registration Number : RA1</p>${COURSE_TABLE_HTML}<footer>x</footer></div>`;
+    const found = findCourseTable(page);
+    expect(found).not.toBeNull();
+    expect(found).toContain("Course Code");
+    expect(found).not.toContain("<footer>");
   });
 });
 
