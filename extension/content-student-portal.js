@@ -111,7 +111,52 @@ function findSalt(doc) {
   const inHref = href?.match(/csrfPreventionSalt=([^&"']+)/i);
   if (inHref) return { value: decodeURIComponent(inHref[1]), how: "menu link" };
 
+  // Anywhere at all, in any attribute or script, under any of the spellings a
+  // JSP app of this age might use.
+  const anywhere = (doc.documentElement?.outerHTML ?? "").match(
+    /(?:csrfPreventionSalt|csrf[_-]?token|_csrf|CSRFToken)["'\s:=]+([A-Za-z0-9._+/=-]{8,})/i
+  );
+  if (anywhere) return { value: anywhere[1], how: "loose match in page source" };
+
   return null;
+}
+
+/**
+ * What a page that yielded no salt actually contains.
+ *
+ * Structural only — field NAMES, frame SRCs, form actions. No values, because
+ * a value here would be the token itself, and this report is meant to be
+ * pasted into a chat. Exists because "NO_SALT_FOUND" on its own cost a whole
+ * round trip: it says the four places we looked came up empty without saying
+ * what the page had instead.
+ */
+function describeShell(doc, html) {
+  const names = [...doc.querySelectorAll("input")]
+    .map((input) => input.name)
+    .filter(Boolean);
+
+  const frames = [...doc.querySelectorAll("frame, iframe")]
+    .map((frame) => frame.getAttribute("src") ?? "(no src)")
+    .slice(0, 6);
+
+  const forms = [...doc.querySelectorAll("form")]
+    .map((form) => `${form.getAttribute("method") ?? "get"} ${form.getAttribute("action") ?? "(self)"}`)
+    .slice(0, 6);
+
+  return {
+    inputNames: names.slice(0, 20),
+    inputCount: names.length,
+    frames,
+    forms,
+    // The decisive one: if the string never appears, the salt isn't on this
+    // page at all and we're fetching the wrong document.
+    mentionsCsrf: /csrf/i.test(html),
+    mentionsSalt: /salt/i.test(html),
+    headings: [...doc.querySelectorAll("h1,h2,h3,h4,h5")]
+      .map((h) => h.textContent.replace(/\s+/g, " ").trim().slice(0, 40))
+      .filter(Boolean)
+      .slice(0, 6),
+  };
 }
 
 /**
@@ -147,13 +192,17 @@ async function csrfSalt() {
     return fetched.value;
   }
 
-  // No salt anywhere, but the session is clearly alive. Carry on without one
-  // and let the form posts report what the portal actually thinks of that.
+  // No salt anywhere, but the session is clearly alive. Describe both
+  // documents before carrying on: the page the student is looking at and the
+  // one we fetched are often not the same thing, and which of them holds the
+  // token decides where to look for it.
   step("csrf-salt", false, {
     reason: "NO_SALT_FOUND",
     note: "session looks alive; posting without a salt",
     status: response.status,
     ...signature(html),
+    fetched: describeShell(new DOMParser().parseFromString(html, "text/html"), html),
+    onScreen: describeShell(document, document.documentElement.outerHTML),
   });
   return null;
 }
@@ -204,7 +253,16 @@ async function fetchForm(name, formId, salt) {
   step(`form ${formId} · ${name}`, true, {
     status: response.status,
     ...sig,
-    ...(sig.tables === 0 ? { suspect: "no <table> in the response" } : {}),
+    // A report page with no table is the portal declining without saying so.
+    // Describe what came back instead, so the next step is a fix rather than
+    // another round trip: four near-identical table-less responses mean
+    // hdnFormId was ignored and we were handed the landing page.
+    ...(sig.tables === 0
+      ? {
+          suspect: "no <table> in the response",
+          ...describeShell(new DOMParser().parseFromString(html, "text/html"), html),
+        }
+      : {}),
   });
 
   return html;
@@ -275,6 +333,42 @@ function markTargets(summaryHtml) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The headers each report is found by, mirrored from lib/sources/*. The server
+ * locates tables by header text, so if a table with these headers is on screen,
+ * handing over the whole rendered page is enough for it to find.
+ */
+const REPORT_HEADERS = {
+  profile: ["student name", "register no"],
+  attendance: ["code", "max. hours", "att. hours"],
+  marks: ["code", "mark / max. mark"],
+  calendar: ["date", "day order"],
+};
+
+/**
+ * The rendered page, but only when it actually holds the report we want.
+ *
+ * Same lesson Academia taught: a fetch can return a shell while the real table
+ * sits in front of the student. Returning the whole document is deliberate —
+ * the server finds tables by header text, so it will pick the right one out,
+ * and guessing at boundaries here would be a second place to get it wrong.
+ * Gated on the headers actually being present so we never post a page that
+ * only makes the parser fail somewhere else.
+ */
+function renderedReport(kind) {
+  const needles = REPORT_HEADERS[kind];
+
+  const match = [...document.querySelectorAll("table")].some((table) => {
+    const header = [...(table.querySelector("tr")?.querySelectorAll("th, td") ?? [])]
+      .map((cell) => cell.textContent.replace(/\s+/g, " ").trim().toLowerCase())
+      .join(" | ");
+
+    return needles.every((needle) => header.includes(needle));
+  });
+
+  return match ? document.documentElement.outerHTML : null;
+}
+
 async function collect() {
   step("page", true, {
     path: location.pathname,
@@ -286,23 +380,51 @@ async function collect() {
   // Sequential, not Promise.all. Seven parallel requests per student is how a
   // few hundred users turn into a load spike on a college server, and the whole
   // job takes under a second either way.
-  const profileHtml = await fetchForm("profile", FORMS.profile, salt);
+  /**
+   * Fetch a report, preferring whichever copy actually contains a table.
+   *
+   * The fetch is still first — it reaches all four reports without the student
+   * navigating anywhere, which is the whole point of a one-click sync. But when
+   * it comes back without the table (the portal ignoring hdnFormId and serving
+   * its landing page), the rendered document is the better answer if the
+   * student happens to be looking at that very report.
+   */
+  const get = async (kind, formId) => {
+    let fetched = null;
+
+    try {
+      fetched = await fetchForm(kind, formId, salt);
+    } catch (error) {
+      // A dead session fails every subsequent request the same way, so stop
+      // and say so once. Anything else — a page this student isn't entitled
+      // to, one SRM has disabled — shouldn't cost us the other reports.
+      if (error.message === "SIGNED_OUT") throw error;
+    }
+
+    if (fetched && /<table/i.test(fetched)) return fetched;
+
+    const onScreen = renderedReport(kind);
+    if (onScreen) {
+      step(`${kind} from rendered page`, true, {
+        bytes: onScreen.length,
+        why: "the fetched copy had no table; this one is on screen",
+      });
+      return onScreen;
+    }
+
+    return fetched;
+  };
+
+  const profileHtml = await get("profile", FORMS.profile);
 
   const optional = {};
-  for (const [key, name, formId] of [
+  for (const [key, kind, formId] of [
     ["attendanceHtml", "attendance", FORMS.attendance],
     ["marksHtml", "marks", FORMS.marks],
     ["calendarHtml", "calendar", FORMS.calendar],
   ]) {
-    try {
-      optional[key] = await fetchForm(name, formId, salt);
-    } catch (error) {
-      // A page a student isn't entitled to, or one SRM has disabled, shouldn't
-      // fail the whole sync — attendance is worth having without marks. A dead
-      // session is different: every request after it will fail the same way, so
-      // stop and say so once.
-      if (error.message === "SIGNED_OUT") throw error;
-    }
+    const html = await get(kind, formId);
+    if (html) optional[key] = html;
   }
 
   // One extra request per graded course, for the component breakdown the
