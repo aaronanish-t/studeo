@@ -1,4 +1,5 @@
 const button = document.getElementById("sync");
+const grantButton = document.getElementById("grant");
 const status = document.getElementById("status");
 const endpointInput = document.getElementById("endpoint");
 const diagnostics = document.getElementById("diagnostics");
@@ -76,6 +77,27 @@ function render(report) {
   );
 }
 
+grantButton.addEventListener("click", () => {
+  const origins = JSON.parse(grantButton.dataset.origins ?? "[]");
+
+  chrome.permissions.request({ origins }, (granted) => {
+    if (chrome.runtime.lastError) {
+      show(chrome.runtime.lastError.message, "error");
+      return;
+    }
+
+    if (!granted) {
+      show("Without that permission Studeo can't read your portal pages.", "error");
+      return;
+    }
+
+    grantButton.hidden = true;
+    // Straight into the sync they asked for a moment ago, rather than making
+    // them find the button again.
+    button.click();
+  });
+});
+
 copyButton.addEventListener("click", async () => {
   await navigator.clipboard.writeText(reportBox.textContent);
   copyButton.textContent = "Copied";
@@ -131,11 +153,24 @@ button.addEventListener("click", () => {
 
     if (!result?.ok) {
       show(result?.error ?? "Sync failed.", "error");
+
+      // A missing permission is the one failure with a one-click fix, so offer
+      // the click instead of the diagnostic. permissions.request has to run
+      // inside a user gesture, which is why it lives here and not in the
+      // worker that discovered the problem.
+      if (result?.needsOrigins?.length) {
+        grantButton.hidden = false;
+        grantButton.dataset.origins = JSON.stringify(result.needsOrigins);
+        return;
+      }
+
       // Open it: a failure the student has to click twice to understand is a
       // failure they'll report as "it just doesn't work".
       diagnostics.open = true;
       return;
     }
+
+    grantButton.hidden = true;
 
     show(describe(result.wrote, result.hadTimetable !== false), "ok");
 

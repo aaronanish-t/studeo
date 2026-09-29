@@ -13,7 +13,17 @@
     "http://localhost:3000/*"
   ],
 
-  "background": { "service_worker": "background.js" },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "studeo-sync@studeo-eight.vercel.app",
+      "strict_min_version": "115.0"
+    }
+  },
+
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
 
   "action": {
     "default_popup": "popup.html",

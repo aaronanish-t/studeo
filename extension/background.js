@@ -26,6 +26,37 @@ async function findTab(pattern) {
   return tabs[0] ?? null;
 }
 
+/** The origins a sync can't happen without. */
+const REQUIRED_ORIGINS = [
+  "https://sp.srmist.edu.in/*",
+  "https://academia.srmist.edu.in/*",
+];
+
+/**
+ * Which portal origins we haven't been granted access to.
+ *
+ * Chrome grants everything in host_permissions at install, so this is empty
+ * there and costs one cheap call. Firefox does not: under MV3 it treats host
+ * permissions as optional, so until the student grants them, tabs.query
+ * returns nothing and content scripts never inject — which is indistinguishable
+ * from "the portal isn't open" unless we ask directly.
+ */
+async function missingOrigins() {
+  if (!chrome.permissions?.contains) return [];
+
+  const missing = [];
+  for (const origin of REQUIRED_ORIGINS) {
+    const granted = await new Promise((resolve) =>
+      chrome.permissions.contains({ origins: [origin] }, (result) =>
+        resolve(chrome.runtime.lastError ? true : result)
+      )
+    );
+    if (!granted) missing.push(origin);
+  }
+
+  return missing;
+}
+
 function sendMessage(tabId, type) {
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, { type }, (response) => {
@@ -89,6 +120,26 @@ function report({ base, sp, academia, ingest }) {
 
 async function sync() {
   const base = await endpoint();
+
+  // Before blaming a missing tab. On Firefox this is the usual first-run
+  // state, and the popup turns it into a button rather than an instruction.
+  const ungranted = await missingOrigins();
+  if (ungranted.length > 0) {
+    return {
+      ok: false,
+      needsOrigins: ungranted,
+      error:
+        "Studeo needs permission to read the SRM portal tabs in this browser.",
+      report: report({
+        base,
+        sp: {
+          trace: [
+            { step: "host permissions", ok: false, missing: ungranted },
+          ],
+        },
+      }),
+    };
+  }
 
   const spTab = await findTab("https://sp.srmist.edu.in/*");
   if (!spTab) {

@@ -162,9 +162,21 @@ Not needed on Vercel.
 
 ## The extension
 
+**Chrome / Edge**
+
 ```
 chrome://extensions → Developer mode → Load unpacked → select extension/
 ```
+
+**Firefox**
+
+```
+about:debugging#/runtime/this-firefox → Load Temporary Add-on → select extension/manifest.json
+```
+
+One manifest serves both, which takes a small deliberate oddity: `background` declares **both** `service_worker` (Chrome's MV3 form) and `scripts` (Firefox's event-page form). Each browser uses the one it understands and warns about the other. Without it the extension loads in Firefox and simply does nothing, because its background never starts — a failure with no error message attached.
+
+The other difference is permissions. Chrome grants everything in `host_permissions` at install; **Firefox treats them as optional under MV3 and grants nothing until asked**, so `tabs.query` finds no portal tabs and content scripts never inject. That is indistinguishable from "the portal isn't open", so the worker checks `permissions.contains` first and the popup offers a **Grant access** button — `permissions.request` has to run inside a user gesture, so it lives in the popup rather than the worker that detected the problem.
 
 Then sign in to the Student Portal (and Academia, if you want a timetable), open the extension and press **Sync now**. It talks to the live site by default; to point it at a local `npm run dev`, set the Studeo address in the popup's settings to `http://localhost:3000`.
 

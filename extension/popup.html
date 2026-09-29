@@ -117,6 +117,11 @@
     <button id="sync">Sync now</button>
     <div id="status" hidden></div>
 
+    <!-- Firefox grants host permissions on request rather than at install, so
+         the first run needs one click. Hidden until we know that's the case,
+         because on Chrome it never is. -->
+    <button id="grant" hidden>Grant access to the SRM portals</button>
+
     <details id="diagnostics" hidden>
       <summary>What happened</summary>
       <div id="report"></div>
