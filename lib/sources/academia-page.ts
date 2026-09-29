@@ -56,11 +56,23 @@ function yearSuffixes(now: Date): string[] {
   );
 }
 
+/**
+ * Page names to try, the one that actually resolves first.
+ *
+ * `My_Time_Table_2023_24` has outlived its year and is still what Academia
+ * serves in 2026-27 — verified against a signed-in session, where the
+ * current-year names 404 and the stale one returns 200. Probing chronologically
+ * therefore spent two guaranteed-failed round trips (655ms and 2083ms, measured)
+ * before reaching the only name that works.
+ *
+ * The generated names stay as insurance: SRM will rename this eventually, and
+ * the cost of carrying them is now zero, because they are only reached when the
+ * known-good name stops resolving.
+ */
 export function timetablePageCandidates(now: Date = new Date()): string[] {
   return [
-    ...yearSuffixes(now).map((suffix) => `My_Time_Table_${suffix}`),
-    // Observed in the wild long after its year passed.
     "My_Time_Table_2023_24",
+    ...yearSuffixes(now).map((suffix) => `My_Time_Table_${suffix}`),
     "My_Time_Table",
   ].filter((page, index, all) => all.indexOf(page) === index);
 }

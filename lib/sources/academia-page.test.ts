@@ -93,14 +93,24 @@ describe("findCourseTable", () => {
 });
 
 describe("timetablePageCandidates", () => {
-  it("leads with the current academic year in the odd semester", () => {
-    // September 2026 sits in AY2026-27.
-    expect(timetablePageCandidates(new Date("2026-09-16"))[0]).toBe("My_Time_Table_2026_27");
+  it("leads with the name Academia actually serves, not the current year", () => {
+    // Measured against a signed-in session in Sep 2026: My_Time_Table_2026_27
+    // and _2025_26 both 404, while the stale _2023_24 returns 200. Probing
+    // chronologically spent 655ms and 2083ms failing before reaching it.
+    expect(timetablePageCandidates(new Date("2026-09-16"))[0]).toBe("My_Time_Table_2023_24");
+  });
+
+  it("still generates the current academic year, as insurance behind it", () => {
+    // SRM will rename this eventually. September 2026 sits in AY2026-27.
+    expect(timetablePageCandidates(new Date("2026-09-16"))).toContain("My_Time_Table_2026_27");
   });
 
   it("treats January as the back half of the previous academic year", () => {
-    // February 2026 is the EVEN semester of AY2025-26, not the start of a new one.
-    expect(timetablePageCandidates(new Date("2026-02-10"))[0]).toBe("My_Time_Table_2025_26");
+    // February 2026 is the EVEN semester of AY2025-26, not the start of a new
+    // one — the off-by-one that would put every spring student on the wrong page.
+    const spring = timetablePageCandidates(new Date("2026-02-10"));
+    expect(spring).toContain("My_Time_Table_2025_26");
+    expect(spring).not.toContain("My_Time_Table_2026_27");
   });
 
   it("keeps the stale name that has outlived its year", () => {
