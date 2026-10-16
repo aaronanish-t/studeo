@@ -233,7 +233,7 @@ const marks = (ft1: number): DemoMark[] => [
  */
 export const DEMO_STUDENTS: DemoStudent[] = [
   {
-    netId: "demo01",
+    netId: "am7301",
     name: "Aarav Menon",
     regNo: "RA2511026010001",
     department: "Computing Technologies",
@@ -255,7 +255,7 @@ export const DEMO_STUDENTS: DemoStudent[] = [
     ],
   },
   {
-    netId: "demo02",
+    netId: "dr5214",
     name: "Divya Raghunathan",
     regNo: "RA2511026010042",
     department: "Computing Technologies",
@@ -273,7 +273,7 @@ export const DEMO_STUDENTS: DemoStudent[] = [
     ],
   },
   {
-    netId: "demo03",
+    netId: "ri8860",
     name: "Rahul Iyer",
     regNo: "RA2511026010117",
     department: "Computing Technologies",
@@ -291,7 +291,7 @@ export const DEMO_STUDENTS: DemoStudent[] = [
     ],
   },
   {
-    netId: "demo04",
+    netId: "np4427",
     name: "Nikhil Prasad",
     regNo: "RA2511026010208",
     department: "Computing Technologies",
@@ -310,7 +310,7 @@ export const DEMO_STUDENTS: DemoStudent[] = [
     ],
   },
   {
-    netId: "demo05",
+    netId: "sb9035",
     name: "Sneha Balakrishnan",
     regNo: "RA2511026010311",
     department: "Computing Technologies",

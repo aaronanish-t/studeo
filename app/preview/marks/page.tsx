@@ -7,7 +7,7 @@ export const metadata = { title: "Marks" };
 export const dynamic = "force-dynamic";
 
 /** The seeded sample account. Internal name; nothing user-facing says "demo". */
-const SAMPLE_NET_ID = "demo01";
+const SAMPLE_NET_ID = "am7301";
 
 export default async function PreviewMarksPage() {
   const marks = await getMarks(SAMPLE_NET_ID);

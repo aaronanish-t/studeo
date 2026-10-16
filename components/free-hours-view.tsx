@@ -106,7 +106,28 @@ export function FreeHoursView({
       </h1>
 
       {/* ---- the answer ------------------------------------------------- */}
-      {best ? (
+      {group.members.length <= 1 ? (
+        // A group of one makes this page technically correct and useless: every
+        // gap in your own day is "common". Say what's missing and link to the
+        // fix, rather than rendering your own timetable back at you.
+        <div className="mt-5">
+          <p className="text-3xl font-semibold tracking-tight text-balance">
+            It&rsquo;s just you so far.
+          </p>
+          <p className="mt-3 max-w-[48ch] text-text-muted">
+            This page intersects your day with your friends&rsquo;. With nobody to
+            compare against, every gap in your own timetable counts — which is a
+            question your timetable already answers.
+          </p>
+          <Link
+            href={`${basePath}/friends`}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-hover"
+          >
+            Add someone
+            <span aria-hidden>&rarr;</span>
+          </Link>
+        </div>
+      ) : best ? (
         <div className="mt-5">
           <p className="tnum text-5xl font-semibold tracking-tighter sm:text-6xl">
             {formatClock(best.startMin)}
