@@ -89,6 +89,43 @@ export function mustAttendHours(
 }
 
 /**
+ * The same course after missing `extraHours` more.
+ *
+ * Hours held go up, hours attended do not — missing a class still counts as a
+ * class held, which is the asymmetry that makes attendance fall faster than
+ * people expect. Skipping one hour of a 90%-attended course costs more than a
+ * tenth of a percent, and a planner that modelled it as "attended stays, total
+ * stays" would quietly tell everyone they were fine.
+ */
+export function afterMissing(
+  input: AttendanceInput,
+  extraHours: number
+): AttendanceInput {
+  return {
+    totalHours: input.totalHours + Math.max(0, extraHours),
+    attendedHours: input.attendedHours,
+  };
+}
+
+/**
+ * The same course after attending `extraHours` more.
+ *
+ * The other half of the question: someone already below the line wants to know
+ * what turning up buys them, and "must attend 6 in a row" is a worse answer
+ * than letting them watch the number move.
+ */
+export function afterAttending(
+  input: AttendanceInput,
+  extraHours: number
+): AttendanceInput {
+  const hours = Math.max(0, extraHours);
+  return {
+    totalHours: input.totalHours + hours,
+    attendedHours: input.attendedHours + hours,
+  };
+}
+
+/**
  * Three states, because two aren't enough to be useful: someone sitting exactly
  * on 75% is not "fine", they are one hour from trouble, and the interface has
  * to say so in a different colour.

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  afterAttending,
+  afterMissing,
   canMissHours,
   debtAsSessions,
   mustAttendHours,
@@ -181,5 +183,56 @@ describe("summarise", () => {
     expect(summarise(verdictFor({ totalHours: 0, attendedHours: 0 }))).toBe(
       "No classes held yet"
     );
+  });
+});
+
+describe("afterMissing", () => {
+  it("adds to hours held but not to hours attended", () => {
+    // The asymmetry the whole planner rests on: a missed class is still a
+    // class held. Modelling it any other way tells everyone they're fine.
+    expect(afterMissing({ totalHours: 20, attendedHours: 18 }, 2)).toEqual({
+      totalHours: 22,
+      attendedHours: 18,
+    });
+  });
+
+  it("is a no-op at zero, so an untouched slider changes nothing", () => {
+    const now = { totalHours: 32, attendedHours: 26 };
+    expect(afterMissing(now, 0)).toEqual(now);
+  });
+
+  it("ignores negative input rather than inventing attendance", () => {
+    expect(afterMissing({ totalHours: 10, attendedHours: 9 }, -5)).toEqual({
+      totalHours: 10,
+      attendedHours: 9,
+    });
+  });
+
+  it("agrees with canMissHours at the boundary", () => {
+    // Missing exactly the slack must leave you at or above the threshold, and
+    // one more must drop you below. If these two ever disagree, the planner
+    // and the attendance page are telling a student different things.
+    const now = { totalHours: 32, attendedHours: 26 };
+    const slack = canMissHours(now);
+
+    expect(percentageOf(afterMissing(now, slack))).toBeGreaterThanOrEqual(75);
+    expect(percentageOf(afterMissing(now, slack + 1))).toBeLessThan(75);
+  });
+});
+
+describe("afterAttending", () => {
+  it("adds to both, since turning up counts twice over", () => {
+    expect(afterAttending({ totalHours: 20, attendedHours: 14 }, 4)).toEqual({
+      totalHours: 24,
+      attendedHours: 18,
+    });
+  });
+
+  it("agrees with mustAttendHours: that many in a row reaches the threshold", () => {
+    const now = { totalHours: 21, attendedHours: 15 }; // 71.43%, genuinely under
+    const debt = mustAttendHours(now);
+
+    expect(percentageOf(afterAttending(now, debt))).toBeGreaterThanOrEqual(75);
+    expect(percentageOf(afterAttending(now, debt - 1))).toBeLessThan(75);
   });
 });

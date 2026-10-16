@@ -28,6 +28,7 @@ const SECTIONS: Section[] = [
   { label: "Overview", path: "" },
   { label: "Attendance", path: "/attendance" },
   { label: "Timetable", path: "/timetable" },
+  { label: "Plan", path: "/plan" },
   { label: "Free hours", path: "/free" },
   { label: "Friends", path: "/friends" },
   { label: "Marks", path: "/marks" },
