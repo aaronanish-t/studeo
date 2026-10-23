@@ -118,7 +118,53 @@ function findSalt(doc) {
   );
   if (anywhere) return { value: anywhere[1], how: "loose match in page source" };
 
+  // A cookie.
+  //
+  // This is the case the first five strategies all miss, and it is why a sync
+  // kept failing with the field sitting in plain sight: the portal renders
+  // <input name="csrfPreventionSalt"> EMPTY and its own script copies the
+  // value in at submit time. Reading the field finds "", so every check that
+  // required a truthy value skipped it and we posted an empty token — which
+  // the portal answers with its landing page, identically, for every form id.
+  const fromCookie = document.cookie
+    .split(";")
+    .map((pair) => pair.trim().split("="))
+    .find(([name]) => /csrf|salt/i.test(name ?? ""));
+
+  if (fromCookie?.[1]) {
+    return {
+      value: decodeURIComponent(fromCookie[1]),
+      how: `cookie "${fromCookie[0]}"`,
+    };
+  }
+
   return null;
+}
+
+/**
+ * How the page talks about the salt, with the token itself removed.
+ *
+ * The field is present and empty, so something sets it later; this shows the
+ * surrounding code so we can find out what. Every quoted run long enough to be
+ * a token is replaced before the snippet leaves the page — the whole point of
+ * these reports is that they are safe to paste into a chat, and a CSRF token
+ * is exactly the thing that must not be.
+ */
+function csrfContext(html) {
+  const snippets = [];
+  const pattern = /csrfPreventionSalt/gi;
+  let match;
+
+  while ((match = pattern.exec(html)) !== null && snippets.length < 4) {
+    snippets.push(
+      html
+        .slice(Math.max(0, match.index - 90), match.index + 110)
+        .replace(/\s+/g, " ")
+        .replace(/(["'])[A-Za-z0-9._+/=-]{8,}\1/g, "$1<redacted>$1")
+    );
+  }
+
+  return snippets;
 }
 
 /**
@@ -148,6 +194,17 @@ function describeShell(doc, html) {
     inputCount: names.length,
     frames,
     forms,
+    // Names only — a cookie value here could be the session itself.
+    cookieNames: document.cookie
+      .split(";")
+      .map((pair) => pair.trim().split("=")[0])
+      .filter(Boolean),
+    // Is the field present but blank? That single fact is the difference
+    // between "SRM renamed it" and "their script fills it in later".
+    saltFieldEmpty: [...doc.querySelectorAll('input[name="csrfPreventionSalt"]')].map(
+      (input) => (input.value ? "has a value" : "EMPTY")
+    ),
+    csrfContext: csrfContext(html),
     // The decisive one: if the string never appears, the salt isn't on this
     // page at all and we're fetching the wrong document.
     mentionsCsrf: /csrf/i.test(html),
