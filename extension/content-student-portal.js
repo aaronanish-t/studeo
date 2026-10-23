@@ -415,15 +415,32 @@ const REPORT_HEADERS = {
 function renderedReport(kind) {
   const needles = REPORT_HEADERS[kind];
 
+  // Matched against the whole table's text, not just its first row.
+  //
+  // Attendance, marks and the calendar are header-and-rows tables, so a first-
+  // row check found them. The profile is not: it is label/value pairs, one per
+  // row, with "Student Name" in the first and "Register No." three rows down —
+  // so no single row ever contains both needles, and the student's own profile
+  // sitting in front of them was skipped. The server locates the real table by
+  // header text anyway, so being looser here costs nothing.
   const match = [...document.querySelectorAll("table")].some((table) => {
-    const header = [...(table.querySelector("tr")?.querySelectorAll("th, td") ?? [])]
-      .map((cell) => cell.textContent.replace(/\s+/g, " ").trim().toLowerCase())
-      .join(" | ");
-
-    return needles.every((needle) => header.includes(needle));
+    const text = table.textContent.replace(/\s+/g, " ").toLowerCase();
+    return needles.every((needle) => text.includes(needle));
   });
 
   return match ? document.documentElement.outerHTML : null;
+}
+
+/**
+ * Does this HTML actually carry the identity block?
+ *
+ * Guards what gets cached. Storing the portal's landing page as "the profile"
+ * would make every later sync fail with the same unhelpful message, and it
+ * would keep failing after the real cause was fixed.
+ */
+function looksLikeProfile(html) {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").toLowerCase();
+  return REPORT_HEADERS.profile.every((needle) => text.includes(needle));
 }
 
 async function collect() {
@@ -472,7 +489,36 @@ async function collect() {
     return fetched;
   };
 
-  const profileHtml = await get("profile", FORMS.profile);
+  /**
+   * The profile, which the server needs to know who this is.
+   *
+   * Remembered between syncs on purpose. Each report lives on its own portal
+   * page and only the one on screen can be rescued from the DOM, so a sync run
+   * from Attendance Details would have no profile and be rejected outright —
+   * the student would have to be looking at their profile and their attendance
+   * simultaneously, which is not a thing. The last good one is kept in this
+   * browser's extension storage (never sent anywhere but Studeo, and it is the
+   * student's own page) so any later sync can still say who it belongs to.
+   */
+  let profileHtml = await get("profile", FORMS.profile);
+
+  if (profileHtml && looksLikeProfile(profileHtml)) {
+    await chrome.storage.local.set({ lastProfileHtml: profileHtml });
+  } else {
+    const { lastProfileHtml } = await chrome.storage.local.get("lastProfileHtml");
+
+    if (lastProfileHtml) {
+      profileHtml = lastProfileHtml;
+      step("profile from a previous sync", true, {
+        bytes: lastProfileHtml.length,
+        why: "this page has no profile table; using the last one that did",
+      });
+    } else {
+      step("profile", false, {
+        why: "never captured — open the portal Dashboard, where your profile is, and sync once",
+      });
+    }
+  }
 
   const optional = {};
   for (const [key, kind, formId] of [
